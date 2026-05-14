@@ -4,6 +4,12 @@ obj/
 node_modules/
 dist/
 
+bin/
+obj/
+.vs/
+*.dll
+*.pdb
+
 # Build folders
 bin/
 obj/
