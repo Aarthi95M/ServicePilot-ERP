@@ -1,0 +1,32 @@
+.vs/
+bin/
+obj/
+node_modules/
+dist/
+
+# Build folders
+bin/
+obj/
+
+# User files
+*.user
+*.suo
+
+# VS Code
+.vscode/
+
+# Node
+node_modules/
+
+# Angular build
+dist/
+
+# Logs
+*.log
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
