@@ -1,0 +1,260 @@
+
+<h2 class="sr-only">Entity relationship diagram for ServicePilot database — 21 tables across 9 modules</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+.legend{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 12px;}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--color-text-secondary);}
+.leg-dot{width:10px;height:10px;border-radius:2px;}
+</style>
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#085041"></div>Core / auth</div>
+  <div class="leg"><div class="leg-dot" style="background:#0C447C"></div>Organization</div>
+  <div class="leg"><div class="leg-dot" style="background:#854F0B"></div>Masters</div>
+  <div class="leg"><div class="leg-dot" style="background:#533AB7"></div>Employees</div>
+  <div class="leg"><div class="leg-dot" style="background:#993C1D"></div>Jobs</div>
+  <div class="leg"><div class="leg-dot" style="background:#3B6D11"></div>Attendance / GPS</div>
+  <div class="leg"><div class="leg-dot" style="background:#72243E"></div>Leave / OT</div>
+  <div class="leg"><div class="leg-dot" style="background:#444441"></div>Notify / Settings</div>
+</div>
+<div id="erd-wrap"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad:false, theme:'base',
+  fontFamily:'"Anthropic Sans",sans-serif',
+  er:{diagramPadding:20,layoutDirection:'TB',minEntityWidth:100,minEntityHeight:37,entityPadding:15,useMaxWidth:true},
+  themeVariables:{
+    darkMode:dark, fontSize:'12px',
+    fontFamily:'"Anthropic Sans",sans-serif',
+    lineColor: dark?'#9c9a92':'#73726c',
+    textColor: dark?'#c2c0b6':'#3d3d3a',
+    primaryColor: dark?'#1a1a18':'#f9fafb',
+    primaryBorderColor: dark?'#3a3a38':'#d1d5db',
+  }
+});
+const diagram = `erDiagram
+  Companies {
+    uuid id PK
+    string name
+    string email
+    string timezone
+    bool is_active
+  }
+  Branches {
+    uuid id PK
+    uuid company_id FK
+    string name
+    decimal latitude
+    decimal longitude
+  }
+  Roles {
+    uuid id PK
+    string name
+    string description
+  }
+  Users {
+    uuid id PK
+    uuid company_id FK
+    uuid role_id FK
+    uuid branch_id FK
+    string email
+    string password_hash
+    timestamp last_login_at
+  }
+  Positions {
+    uuid id PK
+    uuid company_id FK
+    string name
+    bool is_active
+  }
+  Departments {
+    uuid id PK
+    uuid company_id FK
+    string name
+    bool is_active
+  }
+  ShiftTypes {
+    uuid id PK
+    uuid company_id FK
+    string name
+    time start_time
+    time end_time
+    string color_code
+  }
+  LeaveTypes {
+    uuid id PK
+    uuid company_id FK
+    string name
+    int max_days_per_year
+    bool is_paid
+  }
+  JobTypes {
+    uuid id PK
+    uuid company_id FK
+    string name
+    int estimated_duration_mins
+  }
+  JobStatuses {
+    uuid id PK
+    uuid company_id FK
+    string name
+    int display_order
+    string color_code
+  }
+  Employees {
+    uuid id PK
+    uuid company_id FK
+    uuid branch_id FK
+    uuid position_id FK
+    uuid department_id FK
+    string employee_code
+    string full_name
+    string phone_number
+    date visa_expiry_date
+    date passport_expiry_date
+    date emirates_id_expiry_date
+    date joining_date
+    bool is_active
+  }
+  AttendanceLogs {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    timestamp check_in_time
+    timestamp check_out_time
+    decimal check_in_lat
+    decimal check_in_lng
+    decimal check_out_lat
+    decimal check_out_lng
+    bool is_offline_sync
+  }
+  GPSLogs {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    decimal latitude
+    decimal longitude
+    timestamp recorded_at
+    decimal accuracy
+  }
+  EmployeeShifts {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    uuid shift_type_id FK
+    date shift_date
+    string status
+  }
+  LeaveRequests {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    uuid leave_type_id FK
+    date start_date
+    date end_date
+    string status
+    uuid approved_by FK
+  }
+  OvertimeRequests {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    date request_date
+    decimal hours_requested
+    string status
+    uuid approved_by FK
+  }
+  Jobs {
+    uuid id PK
+    uuid company_id FK
+    uuid job_type_id FK
+    uuid job_status_id FK
+    uuid assigned_employee_id FK
+    string job_number
+    string customer_name
+    string customer_phone
+    decimal latitude
+    decimal longitude
+    timestamp scheduled_at
+    timestamp completed_at
+  }
+  JobPhotos {
+    uuid id PK
+    uuid job_id FK
+    string photo_url
+    string photo_type
+    timestamp uploaded_at
+  }
+  JobStatusHistory {
+    uuid id PK
+    uuid job_id FK
+    uuid old_status_id FK
+    uuid new_status_id FK
+    uuid changed_by FK
+    timestamp changed_at
+  }
+  Notifications {
+    uuid id PK
+    uuid company_id FK
+    uuid user_id FK
+    string title
+    string message
+    string type
+    bool is_read
+  }
+  AppSettings {
+    uuid id PK
+    uuid company_id FK
+    string setting_key
+    string setting_value
+  }
+
+  Companies ||--o{ Branches : "has"
+  Companies ||--o{ Users : "has"
+  Companies ||--o{ Employees : "has"
+  Companies ||--o{ Jobs : "has"
+  Companies ||--o{ Positions : "has"
+  Companies ||--o{ Departments : "has"
+  Companies ||--o{ JobTypes : "has"
+  Companies ||--o{ JobStatuses : "has"
+  Companies ||--o{ ShiftTypes : "has"
+  Companies ||--o{ LeaveTypes : "has"
+  Companies ||--o{ Notifications : "has"
+  Companies ||--o{ AppSettings : "has"
+  Roles ||--o{ Users : "assigned to"
+  Branches ||--o{ Users : "works at"
+  Branches ||--o{ Employees : "assigned to"
+  Positions ||--o{ Employees : "holds"
+  Departments ||--o{ Employees : "belongs to"
+  Employees ||--o{ AttendanceLogs : "logs"
+  Employees ||--o{ GPSLogs : "tracks"
+  Employees ||--o{ EmployeeShifts : "has"
+  Employees ||--o{ LeaveRequests : "requests"
+  Employees ||--o{ OvertimeRequests : "requests"
+  Employees ||--o{ Jobs : "assigned"
+  ShiftTypes ||--o{ EmployeeShifts : "defines"
+  LeaveTypes ||--o{ LeaveRequests : "type of"
+  JobTypes ||--o{ Jobs : "type of"
+  JobStatuses ||--o{ Jobs : "status of"
+  Jobs ||--o{ JobPhotos : "has"
+  Jobs ||--o{ JobStatusHistory : "tracks"
+`;
+const {svg} = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd-wrap').innerHTML = svg;
+document.querySelectorAll('#erd-wrap svg .node').forEach(node => {
+  const fp = node.querySelector('path[d]');
+  if(!fp) return;
+  const d = fp.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if(!nums||nums.length<8) return;
+  const xs=[nums[0],nums[2],nums[4],nums[6]], ys=[nums[1],nums[3],nums[5],nums[7]];
+  const x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;
+  const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx','8');
+  for(const a of['fill','stroke','stroke-width','class','style']) if(fp.hasAttribute(a)) r.setAttribute(a,fp.getAttribute(a));
+  fp.replaceWith(r);
+});
+document.querySelectorAll('#erd-wrap svg .row-rect-odd path,#erd-wrap svg .row-rect-even path').forEach(p=>p.setAttribute('stroke','none'));
+</script>
