@@ -14,12 +14,20 @@ namespace ServicePilot.Application.Interfaces.Services
         Task<ApiResponse<LoginResponseDto>> LoginAsync(
             LoginRequestDto request);
 
+        // ── Role checks ───────────────────────────────────────────────
         bool IsAdmin();
-
         bool IsSupervisor();
+        bool IsHRManager();      // ← NEW
+        bool IsDispatcher();     // ← already existed, now used
+        bool IsTechnician();         // ← NEW — useful for field-only checks
 
-        bool IsDispatcher();
-
+        // ── Permission checks ─────────────────────────────────────────
         bool CanManageEmployee(Employee employee);
+
+        /// <summary>
+        /// HR Manager and Admin can edit HR documents (visa, passport, Emirates ID).
+        /// Supervisor cannot.
+        /// </summary>
+        bool CanEditHRDocuments();   // ← NEW
     }
 }

@@ -193,5 +193,94 @@ namespace ServicePilot.Infrastructure.Services
                 Data = positions
             };
         }
+
+        public async Task<ApiResponse<List<JobStatusDropdownDto>>> GetJobStatusesAsync()
+        {
+            var cacheKey = $"job_statuses_{_currentUserService.CompanyId}";
+            var cached = await _distributedCache.GetStringAsync(cacheKey);
+
+            if (cached != null)
+                return new ApiResponse<List<JobStatusDropdownDto>>
+                { Success = true, Data = JsonSerializer.Deserialize<List<JobStatusDropdownDto>>(cached) };
+
+            var statuses = await _context.JobStatuses
+                .AsNoTracking()
+                .Where(x => x.CompanyId == _currentUserService.CompanyId && x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new JobStatusDropdownDto
+                {
+                    Id = x.Id,
+                    Label = x.Name,
+                    ColorCode = x.ColorCode ?? "#888888",
+                    DisplayOrder = x.DisplayOrder 
+                })
+                .ToListAsync();
+
+            await _distributedCache.SetStringAsync(cacheKey,
+                JsonSerializer.Serialize(statuses),
+                new DistributedCacheEntryOptions
+                { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) });
+
+            return new ApiResponse<List<JobStatusDropdownDto>> { Success = true, Data = statuses };
+        }
+
+        public async Task<ApiResponse<List<JobTypeDropdownDto>>> GetJobTypesAsync()
+        {
+            var cacheKey = $"job_types_{_currentUserService.CompanyId}";
+            var cached = await _distributedCache.GetStringAsync(cacheKey);
+
+            if (cached != null)
+                return new ApiResponse<List<JobTypeDropdownDto>>
+                { Success = true, Data = JsonSerializer.Deserialize<List<JobTypeDropdownDto>>(cached) };
+
+            var types = await _context.JobTypes
+                .AsNoTracking()
+                .Where(x => x.CompanyId == _currentUserService.CompanyId && x.IsActive)
+                .OrderBy(x => x.Name)
+                .Select(x => new JobTypeDropdownDto
+                {
+                    Id = x.Id,
+                    Label = x.Name,
+                    EstimatedDurationMins = x.EstimatedDurationMins ?? 60
+                })
+                .ToListAsync();
+
+            await _distributedCache.SetStringAsync(cacheKey,
+                JsonSerializer.Serialize(types),
+                new DistributedCacheEntryOptions
+                { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) });
+
+            return new ApiResponse<List<JobTypeDropdownDto>> { Success = true, Data = types };
+        }
+        public async Task<ApiResponse<List<LeaveTypeDropdownDto>>> GetLeaveTypesAsync()
+        {
+            var cacheKey = $"leave_types_{_currentUserService.CompanyId}";
+            var cached = await _distributedCache.GetStringAsync(cacheKey);
+
+            if (cached != null)
+                return new ApiResponse<List<LeaveTypeDropdownDto>>
+                { Success = true, Data = JsonSerializer.Deserialize<List<LeaveTypeDropdownDto>>(cached) };
+
+            var types = await _context.LeaveTypes
+                .AsNoTracking()
+                .Where(x => x.CompanyId == _currentUserService.CompanyId && x.IsActive)
+                .OrderBy(x => x.Name)
+                .Select(x => new LeaveTypeDropdownDto
+                {
+                    Id = x.Id,
+                    Label = x.Name,
+                    MaxDaysPerYear = x.MaxDaysPerYear,
+                    IsPaid = x.IsPaid
+                })
+                .ToListAsync();
+
+            await _distributedCache.SetStringAsync(cacheKey,
+                JsonSerializer.Serialize(types),
+                new DistributedCacheEntryOptions
+                { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) });
+
+            return new ApiResponse<List<LeaveTypeDropdownDto>> { Success = true, Data = types };
+        }
+
     }
 }

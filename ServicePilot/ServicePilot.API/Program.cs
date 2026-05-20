@@ -1,10 +1,14 @@
 using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using ServicePilot.API.Extensions;
 using ServicePilot.API.Middleware;
-using System.Text;
+using ServicePilot.Application.Validators;
 using ServicePilot.Infrastructure;
+using ServicePilot.Infrastructure.Persistence.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,8 +24,17 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
-builder.Services.AddValidatorsFromAssemblies(
-    AppDomain.CurrentDomain.GetAssemblies());
+//builder.Services.AddValidatorsFromAssemblies(
+//    AppDomain.CurrentDomain.GetAssemblies());
+
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateEmployeeDtoValidator>();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsql => npgsql.MigrationsAssembly("ServicePilot.Infrastructure")
+    ));
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

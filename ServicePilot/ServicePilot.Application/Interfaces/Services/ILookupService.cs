@@ -17,5 +17,10 @@ namespace ServicePilot.Application.Interfaces.Services
         Task<ApiResponse<List<DepartmentDropdownDto>>> GetDepartmentsAsync();
 
         Task<ApiResponse<List<PositionDropdownDto>>> GetPositionsAsync();
+
+        Task<ApiResponse<List<JobStatusDropdownDto>>> GetJobStatusesAsync();
+        Task<ApiResponse<List<LeaveTypeDropdownDto>>> GetLeaveTypesAsync();
+
+        Task<ApiResponse<List<JobTypeDropdownDto>>> GetJobTypesAsync();
     }
 }

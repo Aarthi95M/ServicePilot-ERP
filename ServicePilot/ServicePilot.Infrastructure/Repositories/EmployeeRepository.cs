@@ -152,6 +152,35 @@ namespace ServicePilot.Infrastructure.Repositories
             };
         }
 
-    
+        public async Task<Employee?> GetByIdWithDetailsAsync(Guid id, Guid companyId)
+        {
+            return await _context.Employees
+                .AsNoTracking()
+                .Include(x => x.Branch)
+                .Include(x => x.Department)
+                .Include(x => x.Position)
+                .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId);
+        }
+
+        public async Task<IEnumerable<Employee>> GetExpiringDocumentsAsync(
+    Guid companyId,
+    DateOnly threshold)
+        {
+            return await _context.Employees
+                .AsNoTracking()
+                .Include(x => x.Branch)
+                .Where(x =>
+                    x.CompanyId == companyId &&
+                    x.IsActive &&
+                    (
+                        (x.VisaExpiryDate != null && x.VisaExpiryDate <= threshold) ||
+                        (x.PassportExpiryDate != null && x.PassportExpiryDate <= threshold) ||
+                        (x.EmiratesIdExpiryDate != null && x.EmiratesIdExpiryDate <= threshold)
+                    ))
+                .OrderBy(x => x.VisaExpiryDate)
+                .ToListAsync();
+        }
+
+
     }
 }

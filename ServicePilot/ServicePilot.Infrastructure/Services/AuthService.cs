@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ServicePilot.Application.DTOs.Auth;
 using ServicePilot.Application.Interfaces.Services;
+using ServicePilot.Domain.Constants;
 using ServicePilot.Domain.Entities;
 using ServicePilot.Infrastructure.Persistence.Models;
 using ServicePilot.Shared.Responses;
@@ -36,7 +37,8 @@ namespace ServicePilot.Infrastructure.Services
         {
             var user = await _context.Users
                 .Include(x => x.Role)
-                .FirstOrDefaultAsync(x => x.Email == request.Email);
+                .FirstOrDefaultAsync(x => x.Email == request.Email &&
+                    x.IsActive);
 
             if (user == null)
             {
@@ -59,6 +61,10 @@ namespace ServicePilot.Infrastructure.Services
                     Message = "Invalid email or password"
                 };
             }
+            // Update last login timestamp
+            user.LastLoginAt = DateTime.UtcNow;
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
 
             var token = _jwtService.GenerateToken(
                 user.Id,
@@ -77,41 +83,78 @@ namespace ServicePilot.Infrastructure.Services
                     Token = token,
                     UserId = user.Id,
                     CompanyId = user.CompanyId,
-                    Email = user.Email
+                    Email = user.Email,
+                    Role = user.Role.Name
                 }
             };
         }
 
+        //public bool IsAdmin()
+        //=> _currentUser.Role == "Admin";
+
+        //public bool IsSupervisor()
+        //    => _currentUser.Role == "Supervisor";
+
+        //public bool IsDispatcher()
+        //    => _currentUser.Role == "Dispatcher";
+
+        // ════════════════════════════════════════════════════════════════
+        // ROLE CHECKS
+        // Single source of truth — controllers call these, never compare
+        // _currentUser.Role == "string" directly anywhere in the codebase.
+        // ════════════════════════════════════════════════════════════════
+
         public bool IsAdmin()
-        => _currentUser.Role == "Admin";
+            => _currentUser.Role == Roles.Admin;
 
         public bool IsSupervisor()
-            => _currentUser.Role == "Supervisor";
+            => _currentUser.Role == Roles.Supervisor;
+
+        public bool IsHRManager()
+            => _currentUser.Role == Roles.HRManager;
 
         public bool IsDispatcher()
-            => _currentUser.Role == "Dispatcher";
+            => _currentUser.Role == Roles.Dispatcher;
 
+        public bool IsTechnician()
+            => _currentUser.Role == Roles.Technician;
+
+        // ════════════════════════════════════════════════════════════════
+        // PERMISSION CHECKS
+        // ════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Determines whether the current user can manage (read/update) a given employee.
+        ///
+        /// Admin      → any employee in same company
+        /// HRManager  → any employee in same company (HR data access)
+        /// Supervisor → only employees in their branch
+        /// Dispatcher → no employee management access (read via controller attributes only)
+        /// Employee   → only themselves (handled at controller level, not here)
+        /// </summary>
         public bool CanManageEmployee(Employee employee)
         {
-            // Admin → all company employees
-            if (IsAdmin())
-            {
-                return employee.CompanyId
-                    == _currentUser.CompanyId;
-            }
+            if (employee == null) return false;
 
-            // Supervisor → only same branch
+            // Admin and HR Manager — full company scope
+            if (IsAdmin() || IsHRManager())
+                return employee.CompanyId == _currentUser.CompanyId;
+
+            // Supervisor — branch scope only
             if (IsSupervisor())
-            {
-                return employee.CompanyId
-                    == _currentUser.CompanyId
-                    &&
-                    employee.BranchId
-                    == _currentUser.BranchId;
-            }
+                return employee.CompanyId == _currentUser.CompanyId
+                    && employee.BranchId == _currentUser.BranchId;
 
-            // Dispatcher → no edit access
+            // Dispatcher and Employee — no management access
             return false;
         }
+        /// <summary>
+        /// Only Admin and HR Manager can edit HR documents
+        /// (visa expiry, passport expiry, Emirates ID expiry).
+        /// Supervisors are locked out of these fields.
+        /// </summary>
+        public bool CanEditHRDocuments()
+            => IsAdmin() || IsHRManager();
+
     }
 }

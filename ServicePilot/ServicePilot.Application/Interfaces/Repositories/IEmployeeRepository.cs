@@ -27,6 +27,10 @@ PagedEmployeeRequest filter);
         Task SaveChangesAsync();
 
 
+        Task<Employee?> GetByIdWithDetailsAsync(Guid id, Guid companyId);
+
+        Task<IEnumerable<Employee>> GetExpiringDocumentsAsync(Guid companyId, DateOnly threshold);
+
 
     }
 }

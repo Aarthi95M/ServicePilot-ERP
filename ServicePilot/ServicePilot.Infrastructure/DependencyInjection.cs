@@ -45,7 +45,23 @@ namespace ServicePilot.Infrastructure
 
             services.AddScoped<IAuditRepository, AuditRepository>();
 
+            services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+            services.AddScoped<IAttendanceService, AttendanceService>();
 
+            services.AddScoped<IJobRepository, JobRepository>();
+            services.AddScoped<IJobService, JobService>();
+            services.AddScoped<ILeaveRepository, LeaveRepository>();
+            services.AddScoped<ILeaveService, LeaveService>();
+            services.AddScoped<IOvertimeRepository, OvertimeRepository>();
+            services.AddScoped<IOvertimeService, OvertimeService>();
+
+            services.AddScoped<IDashboardService, DashboardService>();
+            services.AddScoped<IReportService, ReportService>();
+
+            services.AddScoped<ICompanyService, CompanyService>();
+            services.AddScoped<IUserManagementService, UserManagementService>();
+            services.AddScoped<IOrgStructureService, OrgStructureService>();
+            services.AddScoped<ISuperAdminService, SuperAdminService>();
 
             return services;
         }

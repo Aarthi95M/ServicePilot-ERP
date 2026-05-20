@@ -31,6 +31,12 @@ namespace ServicePilot.Infrastructure.Services
 
         private readonly IAuthService _authorization;
 
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
+            WriteIndented = false
+        };
+
         public EmployeeService(
             IEmployeeRepository repository,
             ICurrentUserService currentUser,
@@ -98,7 +104,7 @@ namespace ServicePilot.Infrastructure.Services
 
             await _distributedCache.RemoveAsync($"employees_dropdown_{_currentUser.CompanyId}");
 
-            var newData = JsonSerializer.Serialize(employee);
+            var newData = JsonSerializer.Serialize(employee, _jsonOptions);
 
             await _auditRepository.AddAsync(new AuditLog
             {
@@ -122,28 +128,109 @@ namespace ServicePilot.Infrastructure.Services
             };
         }
 
+        //public async Task<ApiResponse<EmployeeDto>> UpdateAsync(Guid id, UpdateEmployeeDto dto)
+        //{
+        //    var employee = await _repository.GetByIdAsync(id, _currentUser.CompanyId);
+
+        //    if (!_authorization.CanManageEmployee(employee))
+        //    {
+        //        return new ApiResponse<EmployeeDto>
+        //        {
+        //            Success = false,
+        //            Message = "Access denied"
+        //        };
+        //    }
+
+        //    //Dispatcher → blocked
+        //    if (_authorization.IsDispatcher())
+        //    {
+        //        return new ApiResponse<EmployeeDto>
+        //        {
+        //            Success = false,
+        //            Message = "Read-only access"
+        //        };
+        //    }
+
+        //    if (employee == null)
+        //    {
+        //        return new ApiResponse<EmployeeDto>
+        //        {
+        //            Success = false,
+        //            Message = "Employee not found"
+        //        };
+        //    }
+
+        //    if (_authorization.IsSupervisor())
+        //    {
+        //        // cannot move employee across branches
+        //        dto.BranchId = employee.BranchId;
+
+        //        // cannot edit HR documents
+        //        dto.PassportExpiryDate
+        //            = employee.PassportExpiryDate;
+
+        //        dto.VisaExpiryDate
+        //            = employee.VisaExpiryDate;
+
+        //        dto.EmiratesIdExpiryDate
+        //            = employee.EmiratesIdExpiryDate;
+        //    }
+
+        //    var oldData = JsonSerializer.Serialize(employee);
+
+        //    // Basic info
+        //    employee.FullName = dto.FullName;
+        //    employee.PhoneNumber = dto.Phone;
+        //    employee.Email = dto.Email;
+
+        //    // Assignments
+        //    employee.BranchId = dto.BranchId;
+        //    employee.DepartmentId = dto.DepartmentId;
+        //    employee.PositionId = dto.PositionId;
+
+        //    // Documents
+        //    employee.VisaExpiryDate = dto.VisaExpiryDate;
+        //    employee.PassportExpiryDate = dto.PassportExpiryDate;
+        //    employee.EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate;
+
+        //    employee.IsActive = dto.IsActive;
+        //    employee.UpdatedAt = DateTime.UtcNow;
+
+        //    _repository.Update(employee);
+
+        //    await _repository.SaveChangesAsync();
+        //    //clear cache
+        //    await _distributedCache.RemoveAsync($"employees_dropdown_{_currentUser.CompanyId}");
+
+        //    //add audit logs
+        //    var newData = JsonSerializer.Serialize(employee);
+
+        //    await _auditRepository.AddAsync(new AuditLog
+        //    {
+        //        Id = Guid.NewGuid(),
+        //        TableName = "Employees",
+        //        RecordId = employee.Id,
+        //        Action = "UPDATE",
+        //        OldValues = oldData,
+        //        NewValues = newData,
+        //        UserId = _currentUser.UserId,
+        //        CreatedAt = DateTime.UtcNow
+        //    });
+
+        //    await _auditRepository.SaveChangesAsync();
+
+        //    return new ApiResponse<EmployeeDto>
+        //    {
+        //        Success = true,
+        //        Message = "Employee updated successfully",
+        //        Data = _mapper.Map<EmployeeDto>(employee)
+        //    };
+        //}
+
         public async Task<ApiResponse<EmployeeDto>> UpdateAsync(Guid id, UpdateEmployeeDto dto)
         {
+            // ✅ STEP 1: Check employee exists first
             var employee = await _repository.GetByIdAsync(id, _currentUser.CompanyId);
-
-            if (!_authorization.CanManageEmployee(employee))
-            {
-                return new ApiResponse<EmployeeDto>
-                {
-                    Success = false,
-                    Message = "Access denied"
-                };
-            }
-
-            //Dispatcher → blocked
-            if (_authorization.IsDispatcher())
-            {
-                return new ApiResponse<EmployeeDto>
-                {
-                    Success = false,
-                    Message = "Read-only access"
-                };
-            }
 
             if (employee == null)
             {
@@ -154,50 +241,48 @@ namespace ServicePilot.Infrastructure.Services
                 };
             }
 
-            if (_authorization.IsSupervisor())
+            // ✅ STEP 2: Then check authorization (now safe — employee is not null)
+            if (!_authorization.CanManageEmployee(employee))
             {
-                // cannot move employee across branches
-                dto.BranchId = employee.BranchId;
-
-                // cannot edit HR documents
-                dto.PassportExpiryDate
-                    = employee.PassportExpiryDate;
-
-                dto.VisaExpiryDate
-                    = employee.VisaExpiryDate;
-
-                dto.EmiratesIdExpiryDate
-                    = employee.EmiratesIdExpiryDate;
+                return new ApiResponse<EmployeeDto>
+                {
+                    Success = false,
+                    Message = "Access denied"
+                };
             }
 
-            var oldData = JsonSerializer.Serialize(employee);
-            
-            // Basic info
+            // ✅ STEP 3: Supervisor restrictions (branch lock + no HR document edits)
+            //Admin = full edit, HRManager = full edit, Supervisor = locked.
+            if (!_authorization.CanEditHRDocuments())
+            {
+                // Supervisor cannot edit HR documents or move employees between branches
+                dto.BranchId = employee.BranchId;
+                dto.PassportExpiryDate = employee.PassportExpiryDate;
+                dto.VisaExpiryDate = employee.VisaExpiryDate;
+                dto.EmiratesIdExpiryDate = employee.EmiratesIdExpiryDate;
+            }
+
+            var oldData = JsonSerializer.Serialize(employee, _jsonOptions);
+
+            // Apply updates
             employee.FullName = dto.FullName;
             employee.PhoneNumber = dto.Phone;
             employee.Email = dto.Email;
-
-            // Assignments
             employee.BranchId = dto.BranchId;
             employee.DepartmentId = dto.DepartmentId;
             employee.PositionId = dto.PositionId;
-
-            // Documents
             employee.VisaExpiryDate = dto.VisaExpiryDate;
             employee.PassportExpiryDate = dto.PassportExpiryDate;
             employee.EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate;
-
             employee.IsActive = dto.IsActive;
             employee.UpdatedAt = DateTime.UtcNow;
 
             _repository.Update(employee);
-            
             await _repository.SaveChangesAsync();
-            //clear cache
+
             await _distributedCache.RemoveAsync($"employees_dropdown_{_currentUser.CompanyId}");
 
-            //add audit logs
-            var newData = JsonSerializer.Serialize(employee);
+            var newData = JsonSerializer.Serialize(employee, _jsonOptions);
 
             await _auditRepository.AddAsync(new AuditLog
             {
@@ -234,7 +319,7 @@ namespace ServicePilot.Infrastructure.Services
                 };
             }
 
-            var oldData = JsonSerializer.Serialize(employee);
+            var oldData = JsonSerializer.Serialize(employee, _jsonOptions);
 
             employee.IsActive = false;
             employee.UpdatedAt = DateTime.UtcNow;
@@ -244,7 +329,7 @@ namespace ServicePilot.Infrastructure.Services
             await _repository.SaveChangesAsync();
             await _distributedCache.RemoveAsync($"employees_dropdown_{_currentUser.CompanyId}");
 
-            var newData = JsonSerializer.Serialize(employee);
+            var newData = JsonSerializer.Serialize(employee, _jsonOptions);
 
             await _auditRepository.AddAsync(new AuditLog
             {
@@ -287,5 +372,145 @@ namespace ServicePilot.Infrastructure.Services
                 }
             };
         }
+
+        public async Task<ApiResponse<EmployeeDetailDto>> GetByIdAsync(Guid id)
+        {
+            // Use Include to load nav properties in a single query
+            var employee = await _repository.GetByIdWithDetailsAsync(id, _currentUser.CompanyId);
+
+            if (employee == null)
+            {
+                return new ApiResponse<EmployeeDetailDto>
+                {
+                    Success = false,
+                    Message = "Employee not found"
+                };
+            }
+
+            // Supervisor can only see employees in their own branch
+            if (_authorization.IsSupervisor() &&
+                employee.BranchId != _currentUser.BranchId)
+            {
+                return new ApiResponse<EmployeeDetailDto>
+                {
+                    Success = false,
+                    Message = "Access denied"
+                };
+            }
+
+            var dto = MapToDetailDto(employee);
+
+            return new ApiResponse<EmployeeDetailDto>
+            {
+                Success = true,
+                Data = dto
+            };
+        }
+
+        // Private helper — keeps mapping out of the repository
+        private static EmployeeDetailDto MapToDetailDto(Employee e)
+        {
+            return new EmployeeDetailDto
+            {
+                Id = e.Id,
+                EmployeeCode = e.EmployeeCode,
+                FullName = e.FullName,
+                Email = e.Email,
+                PhoneNumber = e.PhoneNumber,
+                IsActive = e.IsActive,
+
+                BranchId = e.BranchId,
+                BranchName = e.Branch?.Name,
+
+                DepartmentId = e.DepartmentId,
+                DepartmentName = e.Department?.Name,
+
+                PositionId = e.PositionId,
+                PositionName = e.Position?.Name,
+
+                JoiningDate = e.JoiningDate,
+                VisaExpiryDate = e.VisaExpiryDate,
+                PassportExpiryDate = e.PassportExpiryDate,
+                EmiratesIdExpiryDate = e.EmiratesIdExpiryDate,
+
+                VisaStatus = GetDocumentStatus(e.VisaExpiryDate),
+                PassportStatus = GetDocumentStatus(e.PassportExpiryDate),
+                EmiratesIdStatus = GetDocumentStatus(e.EmiratesIdExpiryDate),
+
+                CreatedAt = e.CreatedAt,
+                UpdatedAt = e.UpdatedAt
+            };
+        }
+
+        private static DocumentStatus GetDocumentStatus(DateOnly? expiryDate)
+        {
+            if (expiryDate == null) return DocumentStatus.NotProvided;
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var daysLeft = expiryDate.Value.DayNumber - today.DayNumber;
+
+            return daysLeft switch
+            {
+                < 0 => DocumentStatus.Expired,
+                <= 60 => DocumentStatus.ExpiringSoon,
+                _ => DocumentStatus.Valid
+            };
+        }
+        public async Task<ApiResponse<IEnumerable<ExpiringDocumentDto>>> GetExpiringDocumentsAsync(int days)
+        {
+            // Clamp to sensible range — no one needs "expiring in 3 years"
+            if (days < 1) days = 1;
+            if (days > 365) days = 365;
+
+            var threshold = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(days));
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var employees = await _repository.GetExpiringDocumentsAsync(
+                _currentUser.CompanyId,
+                threshold);
+
+            var result = employees.Select(e => new ExpiringDocumentDto
+            {
+                EmployeeId = e.Id,
+                EmployeeCode = e.EmployeeCode,
+                FullName = e.FullName,
+                BranchName = e.Branch?.Name,
+                PhoneNumber = e.PhoneNumber,
+
+                Visa = e.VisaExpiryDate.HasValue && e.VisaExpiryDate <= threshold
+                    ? new ExpiringDocument
+                    {
+                        ExpiryDate = e.VisaExpiryDate.Value,
+                        DaysLeft = e.VisaExpiryDate.Value.DayNumber - today.DayNumber,
+                        Status = GetDocumentStatus(e.VisaExpiryDate)
+                    }
+                    : null,
+
+                Passport = e.PassportExpiryDate.HasValue && e.PassportExpiryDate <= threshold
+                    ? new ExpiringDocument
+                    {
+                        ExpiryDate = e.PassportExpiryDate.Value,
+                        DaysLeft = e.PassportExpiryDate.Value.DayNumber - today.DayNumber,
+                        Status = GetDocumentStatus(e.PassportExpiryDate)
+                    }
+                    : null,
+
+                EmiratesId = e.EmiratesIdExpiryDate.HasValue && e.EmiratesIdExpiryDate <= threshold
+                    ? new ExpiringDocument
+                    {
+                        ExpiryDate = e.EmiratesIdExpiryDate.Value,
+                        DaysLeft = e.EmiratesIdExpiryDate.Value.DayNumber - today.DayNumber,
+                        Status = GetDocumentStatus(e.EmiratesIdExpiryDate)
+                    }
+                    : null
+            });
+
+            return new ApiResponse<IEnumerable<ExpiringDocumentDto>>
+            {
+                Success = true,
+                Data = result
+            };
+        }
+
     }
 }

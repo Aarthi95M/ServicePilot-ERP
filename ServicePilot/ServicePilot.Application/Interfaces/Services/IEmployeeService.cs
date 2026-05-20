@@ -23,5 +23,9 @@ namespace ServicePilot.Application.Interfaces.Services
 
         Task<ApiResponse<bool>> DeleteAsync(Guid id);
 
+        Task<ApiResponse<EmployeeDetailDto>> GetByIdAsync(Guid id);
+
+        Task<ApiResponse<IEnumerable<ExpiringDocumentDto>>> GetExpiringDocumentsAsync(int days);
+
     }
 }

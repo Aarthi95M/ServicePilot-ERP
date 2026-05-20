@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ServicePilot.Application.DTOs.Employees;
 using ServicePilot.Application.Interfaces.Services;
+using ServicePilot.Domain.Constants;
 
 namespace ServicePilot.API.Controllers
 {
@@ -17,46 +18,81 @@ namespace ServicePilot.API.Controllers
             _service = service;
         }
 
+        /// <summary>
+        /// Paged employee list with filters.
+        /// HR Manager added — they need this for managing employee profiles.
+        /// Dispatcher added — they need to see who is available for job assignment.
+        /// Supervisor already had access.
+        /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAll(
-            [FromQuery] EmployeeFilterDto filter)
-        {
-            var response = await _service.GetAllAsync(filter);
-
-            return Ok(response);
-        }
-
-        [HttpGet("paged")]
+        [Authorize(Roles = Roles.EmployeeReadAccess)]  // Admin,HRManager,Supervisor,Dispatcher
         public async Task<IActionResult> GetPaged([FromQuery] PagedEmployeeRequest filter)
         {
             var response = await _service.GetPagedAsync(filter);
             return Ok(response);
         }
 
+        /// <summary>
+        /// Full employee detail — HR documents included.
+        /// Dispatcher can view but cannot edit (enforced at service layer).
+        /// </summary>
+        [HttpGet("{id:guid}")]
+        [Authorize(Roles = Roles.EmployeeReadAccess)]  // Admin,HRManager,Supervisor,Dispatcher
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var response = await _service.GetByIdAsync(id);
+            return response.Success ? Ok(response) : NotFound(response);
+        }
+
+        /// <summary>
+        /// Employees with expiring visa/passport/Emirates ID.
+        /// HR Manager is the primary user of this endpoint.
+        /// </summary>
+        [HttpGet("expiring-documents")]
+        [Authorize(Roles = Roles.HRAccess)]            // Admin,HRManager
+        public async Task<IActionResult> GetExpiringDocuments([FromQuery] int days = 30)
+        {
+            var response = await _service.GetExpiringDocumentsAsync(days);
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Create employee.
+        /// HRManager added — their core job is managing employee records.
+        /// </summary>
         [HttpPost]
-        [Authorize(Roles = "Admin,Supervisor")]
-        public async Task<IActionResult> Create(
-            CreateEmployeeDto dto)
+        [Authorize(Roles = Roles.HRAccess)]            // Admin,HRManager
+        public async Task<IActionResult> Create([FromBody] CreateEmployeeDto dto)
         {
             var response = await _service.CreateAsync(dto);
-
-            return Ok(response);
+            return response.Success
+                ? CreatedAtAction(nameof(GetById), new { id = response.Data!.Id }, response)
+                : BadRequest(response);
         }
 
-        [HttpPut("{id}")]
-        [Authorize(Roles = "Admin,Supervisor")]
-        public async Task<IActionResult> Update(Guid id,UpdateEmployeeDto dto)
+        /// <summary>
+        /// Update employee.
+        /// HRManager added. Supervisor still allowed but locked from HR docs at service layer.
+        /// HR doc lock logic: CanEditHRDocuments() in EmployeeService.UpdateAsync.
+        /// </summary>
+        [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Admin,HRManager,Supervisor")] // Dispatcher cannot edit
+        public async Task<IActionResult> Update(Guid id, [FromBody] UpdateEmployeeDto dto)
         {
             var response = await _service.UpdateAsync(id, dto);
-            return Ok(response);
+            return response.Success ? Ok(response) : BadRequest(response);
         }
 
-        [Authorize(Roles = "Admin")]
-        [HttpDelete("{id}")]
+        /// <summary>
+        /// Deactivate employee (soft delete).
+        /// Only Admin and HR Manager — Supervisor cannot deactivate employees.
+        /// </summary>
+        [HttpDelete("{id:guid}")]
+        [Authorize(Roles = Roles.HRAccess)]            // Admin,HRManager
         public async Task<IActionResult> Delete(Guid id)
         {
             var response = await _service.DeleteAsync(id);
-            return Ok(response);
+            return response.Success ? Ok(response) : NotFound(response);
         }
     }
 }
