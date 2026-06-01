@@ -32,7 +32,7 @@ namespace ServicePilot.Infrastructure.Repositories
             var query = _context.Employees
                 .Where(x => x.CompanyId == companyId);
 
-            if (_currentUser.Role == "Supervisor")
+            if (string.Equals(_currentUser.Role, "Supervisor", StringComparison.OrdinalIgnoreCase))
             {
                 query = query.Where(x =>
                     x.BranchId == _currentUser.BranchId);
@@ -94,6 +94,10 @@ namespace ServicePilot.Infrastructure.Repositories
         {
             var query = _context.Employees
          .AsNoTracking() // 🚀 PERFORMANCE BOOST
+          .Include(x => x.Branch)       // ← ADD
+    .Include(x => x.Department)   // ← ADD
+    .Include(x => x.Position)     // ← ADD
+
          .Where(x => x.CompanyId == companyId);
 
             if (filter.BranchId.HasValue)
@@ -138,8 +142,22 @@ namespace ServicePilot.Infrastructure.Repositories
                 EmployeeCode = x.EmployeeCode,
                 FullName = x.FullName,
                 Email = x.Email,
-                Phone = x.PhoneNumber,
+                PhoneNumber = x.PhoneNumber,
                 IsActive = x.IsActive,
+                PositionId = x.PositionId,
+                BranchId = x.BranchId,
+                DepartmentId = x.DepartmentId,
+                PositionName = x.Position != null ? x.Position.Name : "",
+                DepartmentName = x.Department != null ? x.Department.Name : "",
+                BranchName = x.Branch != null ? x.Branch.Name : "",
+                // ← ADD THIS: compute status from expiry date directly in the projection
+                VisaStatus = x.VisaExpiryDate == null
+        ? DocumentStatus.NotProvided
+        : x.VisaExpiryDate < DateOnly.FromDateTime(DateTime.UtcNow)
+            ? DocumentStatus.Expired
+            : x.VisaExpiryDate <= DateOnly.FromDateTime(DateTime.UtcNow.AddDays(60))
+                ? DocumentStatus.ExpiringSoon
+                : DocumentStatus.Valid,
             })
             .ToListAsync();
 
@@ -160,6 +178,20 @@ namespace ServicePilot.Infrastructure.Repositories
                 .Include(x => x.Department)
                 .Include(x => x.Position)
                 .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId);
+        }
+
+        public async Task<Employee?> GetByUserIdAsync(Guid userId, Guid companyId)
+        {
+            // Look up the EmployeeId linked to this user, then load the full employee detail.
+            var employeeId = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == userId && u.CompanyId == companyId && u.EmployeeId != null)
+                .Select(u => u.EmployeeId)
+                .FirstOrDefaultAsync();
+
+            if (employeeId == null) return null;
+
+            return await GetByIdWithDetailsAsync(employeeId.Value, companyId);
         }
 
         public async Task<IEnumerable<Employee>> GetExpiringDocumentsAsync(

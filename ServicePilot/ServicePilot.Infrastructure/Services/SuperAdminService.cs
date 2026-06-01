@@ -103,6 +103,28 @@ namespace ServicePilot.Infrastructure.Services
             });
         }
 
+        public async Task<ApiResponse<List<CompanySummaryDto>>> ListCompaniesAsync()
+        {
+            var companies = await _context.Companies
+                .AsNoTracking()
+                .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new CompanySummaryDto
+                {
+                    CompanyId     = c.Id,
+                    CompanyName   = c.Name,
+                    Email         = c.Email,
+                    Phone         = c.Phone,
+                    Timezone      = c.Timezone ?? "Asia/Dubai",
+                    IsActive      = c.IsActive,
+                    UserCount     = c.Users.Count,
+                    EmployeeCount = c.Employees.Count,
+                    CreatedAt     = c.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(companies);
+        }
+
         public async Task<ApiResponse<bool>> DeactivateCompanyAsync(Guid companyId)
         {
             var company = await _context.Companies

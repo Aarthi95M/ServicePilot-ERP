@@ -20,17 +20,20 @@ namespace ServicePilot.Infrastructure.Services
         private readonly ICurrentUserService _currentUser;
         private readonly IAuthService _authorization;
         private readonly AppDbContext _context;
+        private readonly INotificationService _notifications;
 
         public LeaveService(
             ILeaveRepository repository,
             ICurrentUserService currentUser,
             IAuthService authorization,
-            AppDbContext context)
+            AppDbContext context,
+            INotificationService notifications)
         {
-            _repository = repository;
-            _currentUser = currentUser;
+            _repository    = repository;
+            _currentUser   = currentUser;
             _authorization = authorization;
-            _context = context;
+            _context       = context;
+            _notifications = notifications;
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -88,6 +91,14 @@ namespace ServicePilot.Infrastructure.Services
 
             await _repository.AddAsync(request);
             await _repository.SaveChangesAsync();
+
+            // Notify HR / Admins that a new leave request needs review
+            await _notifications.NotifyCompanyAsync(
+                _currentUser.CompanyId,
+                title:   $"New Leave Request — {employee.FullName}",
+                message: $"{employee.FullName} submitted a {leaveType.Name} request " +
+                         $"({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}).",
+                type:    "leave");
 
             var created = await _repository.GetByIdAsync(request.Id, _currentUser.CompanyId);
             return Ok(MapToDto(created!));
@@ -209,6 +220,27 @@ namespace ServicePilot.Infrastructure.Services
 
             _repository.Update(request);
             await _repository.SaveChangesAsync();
+
+            // Notify the employee that their request was actioned
+            var employeeUserId = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.EmployeeId == request.EmployeeId && u.CompanyId == _currentUser.CompanyId)
+                .Select(u => (Guid?)u.Id)
+                .FirstOrDefaultAsync();
+
+            if (employeeUserId.HasValue)
+            {
+                bool approved = dto.Status == RequestStatus.Approved;
+                await _notifications.NotifyUserAsync(
+                    _currentUser.CompanyId,
+                    employeeUserId.Value,
+                    title:   approved ? "Leave Request Approved" : "Leave Request Rejected",
+                    message: approved
+                        ? $"Your leave request ({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}) has been approved."
+                        : $"Your leave request ({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}) was rejected." +
+                          (string.IsNullOrWhiteSpace(dto.Reason) ? "" : $" Reason: {dto.Reason}"),
+                    type: "leave");
+            }
 
             var updated = await _repository.GetByIdAsync(request.Id, _currentUser.CompanyId);
             return Ok(MapToDto(updated!));

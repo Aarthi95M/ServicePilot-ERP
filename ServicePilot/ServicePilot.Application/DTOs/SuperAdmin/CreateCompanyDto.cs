@@ -34,4 +34,18 @@ namespace ServicePilot.Application.DTOs.SuperAdmin
         public string AdminEmail { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
     }
+
+    /// <summary>Summary row returned in GET /api/superadmin/companies.</summary>
+    public class CompanySummaryDto
+    {
+        public Guid   CompanyId    { get; set; }
+        public string CompanyName  { get; set; } = string.Empty;
+        public string? Email       { get; set; }
+        public string? Phone       { get; set; }
+        public string Timezone     { get; set; } = "Asia/Dubai";
+        public bool   IsActive     { get; set; }
+        public int    UserCount    { get; set; }
+        public int    EmployeeCount { get; set; }
+        public DateTime CreatedAt  { get; set; }
+    }
 }

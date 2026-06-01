@@ -1038,3 +1038,28 @@ VALUES
   (gen_random_uuid(), 'HRManager',  'Human Resources Manager — full employee and attendance access, no job management', now()),
   (gen_random_uuid(), 'Dispatcher', 'Job Dispatcher — full job scheduling and assignment access, no HR data access',    now())
 ON CONFLICT (name) DO NOTHING;
+
+
+
+
+-- Migration: AddPasswordResetTokens
+-- Run this once in your servicepilot_db database
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id              UUID          NOT NULL DEFAULT gen_random_uuid(),
+    user_id         UUID          NOT NULL,
+    token_hash      VARCHAR(64)   NOT NULL,
+    expires_at      TIMESTAMPTZ   NOT NULL,
+    is_used         BOOLEAN       NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+
+    CONSTRAINT password_reset_tokens_pkey PRIMARY KEY (id),
+    CONSTRAINT fk_prt_user_id FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prt_token_hash
+    ON password_reset_tokens (token_hash);
+
+CREATE INDEX IF NOT EXISTS idx_prt_user_used
+    ON password_reset_tokens (user_id, is_used);

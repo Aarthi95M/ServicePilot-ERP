@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ServicePilot.Application.DTOs.Employees;
 using System;
 using System.Collections.Generic;
@@ -17,24 +17,15 @@ namespace ServicePilot.Application.Validators
                 .MaximumLength(200).WithMessage("Full name must not exceed 200 characters.");
 
             RuleFor(x => x.Email)
-                .NotEmpty().WithMessage("Email is required.")
                 .EmailAddress().WithMessage("A valid email address is required.")
-                .MaximumLength(200).WithMessage("Email must not exceed 200 characters.");
+                .MaximumLength(200).WithMessage("Email must not exceed 200 characters.")
+                .When(x => !string.IsNullOrEmpty(x.Email));
 
-            RuleFor(x => x.Phone)
-                .NotEmpty().WithMessage("Phone number is required.")
+            RuleFor(x => x.PhoneNumber)
                 .MaximumLength(50).WithMessage("Phone number must not exceed 50 characters.")
                 .Matches(@"^\+?[0-9\s\-\(\)]{7,20}$")
-                .WithMessage("Phone number format is invalid.");
-
-            RuleFor(x => x.DepartmentId)
-                .NotEmpty().WithMessage("Department is required.");
-
-            RuleFor(x => x.PositionId)
-                .NotEmpty().WithMessage("Position is required.");
-
-            RuleFor(x => x.BranchId)
-                .NotEmpty().WithMessage("Branch is required.");
+                .WithMessage("Phone number format is invalid.")
+                .When(x => !string.IsNullOrEmpty(x.PhoneNumber));
 
             RuleFor(x => x.VisaExpiryDate)
                 .GreaterThan(DateOnly.FromDateTime(DateTime.UtcNow))

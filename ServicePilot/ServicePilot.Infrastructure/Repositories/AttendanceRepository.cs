@@ -73,7 +73,7 @@ namespace ServicePilot.Infrastructure.Repositories
                 query = query.Where(x => x.Employee.DepartmentId == filter.DepartmentId);
 
             if (!string.IsNullOrWhiteSpace(filter.Status))
-                query = query.Where(x => x.Status == filter.Status);
+                query = query.Where(x => x.Status.ToLower() == filter.Status.ToLower());
 
             if (filter.DateFrom.HasValue)
             {
@@ -155,7 +155,7 @@ namespace ServicePilot.Infrastructure.Repositories
                         .Sum(x => (x.CheckOutTime!.Value - x.CheckInTime!.Value).TotalHours);
 
                     var checkInTimes = g
-                        .Where(x => x.Status != AttendanceStatus.Absent)
+                        .Where(x => x.Status.ToLower() != AttendanceStatus.Absent.ToLower())
                         .Select(x => x.CheckInTime!.Value.TimeOfDay)
                         .ToList();
 
@@ -173,9 +173,9 @@ namespace ServicePilot.Infrastructure.Repositories
                         EmployeeCode = g.Key.EmployeeCode,
                         BranchName = g.Key.BranchName,
                         TotalDays = g.Count(),
-                        PresentDays = g.Count(x => x.Status == AttendanceStatus.Present),
-                        LateDays = g.Count(x => x.Status == AttendanceStatus.Late),
-                        AbsentDays = g.Count(x => x.Status == AttendanceStatus.Absent),
+                        PresentDays = g.Count(x => x.Status.ToLower() == AttendanceStatus.Present.ToLower()),
+                        LateDays = g.Count(x => x.Status.ToLower() == AttendanceStatus.Late.ToLower()),
+                        AbsentDays = g.Count(x => x.Status.ToLower() == AttendanceStatus.Absent.ToLower()),
                         TotalHoursWorked = Math.Round(totalHours, 2),
                         AverageCheckIn = avgCheckIn
                     };
@@ -208,7 +208,7 @@ namespace ServicePilot.Infrastructure.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public async void Update(AttendanceLog log)
+        public void Update(AttendanceLog log)
         {
             _context.AttendanceLogs.Update(log);
         }

@@ -19,5 +19,6 @@ namespace ServicePilot.Application.Interfaces.Services
         Task<ApiResponse<IEnumerable<AttendanceSummaryDto>>> GetSummaryAsync(
             DateOnly from, DateOnly to, Guid? branchId, Guid? departmentId);
         Task<ApiResponse<bool>> LogGpsAsync(GpsLogRequestDto dto);
+        Task<ApiResponse<IEnumerable<LiveLocationDto>>> GetLiveLocationsAsync();
     }
 }

@@ -14,6 +14,23 @@ namespace ServicePilot.Application.Interfaces.Services
         Task<ApiResponse<LoginResponseDto>> LoginAsync(
             LoginRequestDto request);
 
+        /// <summary>
+        /// Generates a password-reset token and (TODO: when email service is wired)
+        /// sends it to the user. Always succeeds — never reveals whether the email exists.
+        /// </summary>
+        Task ForgotPasswordAsync(ForgotPasswordRequestDto request);
+
+        /// <summary>
+        /// Validates the reset token and sets the new password.
+        /// </summary>
+        Task<ApiResponse<bool>> ResetPasswordAsync(ResetPasswordRequestDto request);
+
+        /// <summary>
+        /// Changes the password for the currently authenticated user.
+        /// Requires the current password to be correct.
+        /// </summary>
+        Task<ApiResponse<bool>> ChangePasswordAsync(ChangePasswordRequestDto request);
+
         // ── Role checks ───────────────────────────────────────────────
         bool IsAdmin();
         bool IsSupervisor();

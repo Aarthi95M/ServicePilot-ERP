@@ -334,6 +334,78 @@ namespace ServicePilot.Infrastructure.Services
             });
         }
 
+        // ════════════════════════════════════════════════════════════════
+        // LIVE LOCATIONS — latest GPS ping per checked-in employee
+        // ════════════════════════════════════════════════════════════════
+
+        public async Task<ApiResponse<IEnumerable<LiveLocationDto>>> GetLiveLocationsAsync()
+        {
+            var today = DateTime.UtcNow.Date;
+
+            // All active employees in the company (scoped to branch for Supervisor)
+            var employeeQuery = _context.Employees
+                .AsNoTracking()
+                .Include(e => e.Branch)
+                .Where(e => e.CompanyId == _currentUser.CompanyId && e.IsActive);
+
+            if (_authorization.IsSupervisor())
+                employeeQuery = employeeQuery.Where(e => e.BranchId == _currentUser.BranchId);
+
+            var employees = await employeeQuery.ToListAsync();
+            var employeeIds = employees.Select(e => e.Id).ToList();
+
+            // Today's attendance logs
+            var attendanceLogs = await _context.AttendanceLogs
+                .AsNoTracking()
+                .Where(a =>
+                    a.CompanyId == _currentUser.CompanyId &&
+                    employeeIds.Contains(a.EmployeeId) &&
+                    a.CheckInTime >= today)
+                .ToListAsync();
+
+            // Latest GPS log per employee (last 24 h)
+            var since = DateTime.UtcNow.AddHours(-24);
+            var latestGps = await _context.GpsLogs
+                .AsNoTracking()
+                .Where(g =>
+                    g.CompanyId == _currentUser.CompanyId &&
+                    employeeIds.Contains(g.EmployeeId) &&
+                    g.RecordedAt >= since)
+                .GroupBy(g => g.EmployeeId)
+                .Select(grp => grp.OrderByDescending(g => g.RecordedAt).First())
+                .ToListAsync();
+
+            var gpsByEmployee = latestGps.ToDictionary(g => g.EmployeeId);
+            var attByEmployee = attendanceLogs
+                .GroupBy(a => a.EmployeeId)
+                .ToDictionary(grp => grp.Key, grp => grp.OrderByDescending(a => a.CheckInTime).First());
+
+            var result = employees.Select(emp =>
+            {
+                gpsByEmployee.TryGetValue(emp.Id, out var gps);
+                attByEmployee.TryGetValue(emp.Id, out var att);
+
+                string status = att == null
+                    ? "NotCheckedIn"
+                    : att.CheckOutTime == null ? "CheckedIn" : "CheckedOut";
+
+                return new LiveLocationDto
+                {
+                    EmployeeId       = emp.Id,
+                    EmployeeName     = emp.FullName,
+                    EmployeeCode     = emp.EmployeeCode,
+                    PhoneNumber      = emp.PhoneNumber,
+                    BranchName       = emp.Branch?.Name,
+                    Latitude         = gps != null ? (double?)gps.Latitude : null,
+                    Longitude        = gps != null ? (double?)gps.Longitude : null,
+                    LastSeenAt       = gps?.RecordedAt,
+                    AttendanceStatus = status
+                };
+            }).ToList();
+
+            return Ok<IEnumerable<LiveLocationDto>>(result);
+        }
+
         /// <summary>
         /// Maps AttendanceLog + Employee to AttendanceResponseDto.
         /// HoursWorked is computed here — never stored in DB.

@@ -43,26 +43,26 @@ namespace ServicePilot.Infrastructure.Services
 
             // ── Run queries in parallel where possible ─────────────────
 
-            var totalEmployeesTask = _context.Employees
+            var totalEmployeesTask = await _context.Employees
                 .CountAsync(x => x.CompanyId == companyId && x.IsActive);
 
-            var totalBranchesTask = _context.Branches
+            var totalBranchesTask = await _context.Branches
                 .CountAsync(x => x.CompanyId == companyId && x.IsActive);
 
-            var totalActiveJobsTask = _context.Jobs
+            var totalActiveJobsTask = await _context.Jobs
                 .CountAsync(x => x.CompanyId == companyId && x.CompletedAt == null);
 
-            var pendingLeaveTask = _context.LeaveRequests
+            var pendingLeaveTask = await _context.LeaveRequests
                 .CountAsync(x => x.CompanyId == companyId
                               && x.Status == RequestStatus.Pending);
 
-            var pendingOvertimeTask = _context.OvertimeRequests
+            var pendingOvertimeTask = await _context.OvertimeRequests
                 .CountAsync(x => x.CompanyId == companyId
                               && x.Status == RequestStatus.Pending);
 
-            await Task.WhenAll(
-                totalEmployeesTask, totalBranchesTask,
-                totalActiveJobsTask, pendingLeaveTask, pendingOvertimeTask);
+            //await Task.WhenAll(
+            //    totalEmployeesTask, totalBranchesTask,
+            //    totalActiveJobsTask, pendingLeaveTask, pendingOvertimeTask);
 
             // ── Today's attendance ─────────────────────────────────────
             var todayLogs = await _context.AttendanceLogs
@@ -74,8 +74,8 @@ namespace ServicePilot.Infrastructure.Services
                     x.CheckInTime < todayEnd)
                 .ToListAsync();
 
-            var totalEmployees = await totalEmployeesTask;
-            var attendance = BuildAttendanceSnapshot(todayLogs, totalEmployees, today);
+            //var totalEmployees = await totalEmployeesTask;
+            var attendance = BuildAttendanceSnapshot(todayLogs, totalEmployeesTask, today);
 
             // ── Active employees (currently on-site) ──────────────────
             var activeEmployees = todayLogs
@@ -188,11 +188,11 @@ namespace ServicePilot.Infrastructure.Services
 
             var dashboard = new AdminDashboardDto
             {
-                TotalActiveEmployees = totalEmployees,
-                TotalActiveBranches = await totalBranchesTask,
-                TotalActiveJobs = await totalActiveJobsTask,
-                PendingLeaveRequests = await pendingLeaveTask,
-                PendingOvertimeRequests = await pendingOvertimeTask,
+                TotalActiveEmployees = totalEmployeesTask,
+                TotalActiveBranches =  totalBranchesTask,
+                TotalActiveJobs =  totalActiveJobsTask,
+                PendingLeaveRequests =  pendingLeaveTask,
+                PendingOvertimeRequests =  pendingOvertimeTask,
                 ExpiringDocumentsCount = expiryAlerts.Count,
                 TodayAttendance = attendance,
                 JobsByStatus = jobsByStatus,

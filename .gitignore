@@ -30,8 +30,16 @@ dist/
 # Logs
 *.log
 
-# Environment
+# Environment / secrets — never commit these
 .env
+.env.local
+.env.*.local
+
+# ASP.NET secrets — Development overrides contain real DB passwords and JWT secrets
+appsettings.Development.json
+appsettings.*.Development.json
+# User Secrets (dotnet user-secrets)
+secrets.json
 
 # OS
 .DS_Store

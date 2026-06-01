@@ -1,19 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ServicePilot.Application.Interfaces.Repositories;
 using ServicePilot.Application.Interfaces.Services;
-using ServicePilot.Infrastructure.Persistence.Models;
 using ServicePilot.Infrastructure.Repositories;
 using ServicePilot.Infrastructure.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ServicePilot.Infrastructure
 {
@@ -23,9 +13,8 @@ namespace ServicePilot.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
-            services.AddDbContext<AppDbContext>(options =>
-                options.UseNpgsql(
-                    configuration.GetConnectionString("DefaultConnection")));
+            // NOTE: DbContext is registered in Program.cs with MigrationsAssembly.
+            // Do NOT add a second AddDbContext here — it would shadow the migration config.
 
             services.AddScoped<IJwtService, JwtService>();
             services.AddScoped<IPasswordService, PasswordService>();
@@ -62,6 +51,7 @@ namespace ServicePilot.Infrastructure
             services.AddScoped<IUserManagementService, UserManagementService>();
             services.AddScoped<IOrgStructureService, OrgStructureService>();
             services.AddScoped<ISuperAdminService, SuperAdminService>();
+            services.AddScoped<INotificationService, NotificationService>();
 
             return services;
         }

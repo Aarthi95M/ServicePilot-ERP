@@ -91,6 +91,17 @@ namespace ServicePilot.API.Controllers
         }
 
         /// <summary>
+        /// Live locations: latest GPS ping + check-in status per active employee.
+        /// </summary>
+        [HttpGet("live-locations")]
+        [Authorize(Roles = Roles.AttendanceReadAccess)] // Admin,HRManager,Supervisor
+        public async Task<IActionResult> GetLiveLocations()
+        {
+            var response = await _service.GetLiveLocationsAsync();
+            return Ok(response);
+        }
+
+        /// <summary>
         /// Monthly summary report.
         /// HR Manager primary user. Supervisor sees their branch only.
         /// </summary>

@@ -31,6 +31,9 @@ PagedEmployeeRequest filter);
 
         Task<IEnumerable<Employee>> GetExpiringDocumentsAsync(Guid companyId, DateOnly threshold);
 
-
+        /// <summary>
+        /// Finds the employee record linked to a given User.Id (via users.employee_id FK).
+        /// </summary>
+        Task<Employee?> GetByUserIdAsync(Guid userId, Guid companyId);
     }
 }

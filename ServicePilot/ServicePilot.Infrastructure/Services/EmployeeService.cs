@@ -82,7 +82,7 @@ namespace ServicePilot.Infrastructure.Services
                 EmployeeCode = employeeCode,
 
                 FullName = dto.FullName,
-                PhoneNumber = dto.Phone,
+                PhoneNumber = dto.PhoneNumber,
                 Email = dto.Email,
 
                 BranchId = dto.BranchId,
@@ -128,105 +128,6 @@ namespace ServicePilot.Infrastructure.Services
             };
         }
 
-        //public async Task<ApiResponse<EmployeeDto>> UpdateAsync(Guid id, UpdateEmployeeDto dto)
-        //{
-        //    var employee = await _repository.GetByIdAsync(id, _currentUser.CompanyId);
-
-        //    if (!_authorization.CanManageEmployee(employee))
-        //    {
-        //        return new ApiResponse<EmployeeDto>
-        //        {
-        //            Success = false,
-        //            Message = "Access denied"
-        //        };
-        //    }
-
-        //    //Dispatcher → blocked
-        //    if (_authorization.IsDispatcher())
-        //    {
-        //        return new ApiResponse<EmployeeDto>
-        //        {
-        //            Success = false,
-        //            Message = "Read-only access"
-        //        };
-        //    }
-
-        //    if (employee == null)
-        //    {
-        //        return new ApiResponse<EmployeeDto>
-        //        {
-        //            Success = false,
-        //            Message = "Employee not found"
-        //        };
-        //    }
-
-        //    if (_authorization.IsSupervisor())
-        //    {
-        //        // cannot move employee across branches
-        //        dto.BranchId = employee.BranchId;
-
-        //        // cannot edit HR documents
-        //        dto.PassportExpiryDate
-        //            = employee.PassportExpiryDate;
-
-        //        dto.VisaExpiryDate
-        //            = employee.VisaExpiryDate;
-
-        //        dto.EmiratesIdExpiryDate
-        //            = employee.EmiratesIdExpiryDate;
-        //    }
-
-        //    var oldData = JsonSerializer.Serialize(employee);
-
-        //    // Basic info
-        //    employee.FullName = dto.FullName;
-        //    employee.PhoneNumber = dto.Phone;
-        //    employee.Email = dto.Email;
-
-        //    // Assignments
-        //    employee.BranchId = dto.BranchId;
-        //    employee.DepartmentId = dto.DepartmentId;
-        //    employee.PositionId = dto.PositionId;
-
-        //    // Documents
-        //    employee.VisaExpiryDate = dto.VisaExpiryDate;
-        //    employee.PassportExpiryDate = dto.PassportExpiryDate;
-        //    employee.EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate;
-
-        //    employee.IsActive = dto.IsActive;
-        //    employee.UpdatedAt = DateTime.UtcNow;
-
-        //    _repository.Update(employee);
-
-        //    await _repository.SaveChangesAsync();
-        //    //clear cache
-        //    await _distributedCache.RemoveAsync($"employees_dropdown_{_currentUser.CompanyId}");
-
-        //    //add audit logs
-        //    var newData = JsonSerializer.Serialize(employee);
-
-        //    await _auditRepository.AddAsync(new AuditLog
-        //    {
-        //        Id = Guid.NewGuid(),
-        //        TableName = "Employees",
-        //        RecordId = employee.Id,
-        //        Action = "UPDATE",
-        //        OldValues = oldData,
-        //        NewValues = newData,
-        //        UserId = _currentUser.UserId,
-        //        CreatedAt = DateTime.UtcNow
-        //    });
-
-        //    await _auditRepository.SaveChangesAsync();
-
-        //    return new ApiResponse<EmployeeDto>
-        //    {
-        //        Success = true,
-        //        Message = "Employee updated successfully",
-        //        Data = _mapper.Map<EmployeeDto>(employee)
-        //    };
-        //}
-
         public async Task<ApiResponse<EmployeeDto>> UpdateAsync(Guid id, UpdateEmployeeDto dto)
         {
             // ✅ STEP 1: Check employee exists first
@@ -266,7 +167,7 @@ namespace ServicePilot.Infrastructure.Services
 
             // Apply updates
             employee.FullName = dto.FullName;
-            employee.PhoneNumber = dto.Phone;
+            employee.PhoneNumber = dto.PhoneNumber;
             employee.Email = dto.Email;
             employee.BranchId = dto.BranchId;
             employee.DepartmentId = dto.DepartmentId;
@@ -274,6 +175,7 @@ namespace ServicePilot.Infrastructure.Services
             employee.VisaExpiryDate = dto.VisaExpiryDate;
             employee.PassportExpiryDate = dto.PassportExpiryDate;
             employee.EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate;
+            employee.JoiningDate = dto.JoiningDate;
             employee.IsActive = dto.IsActive;
             employee.UpdatedAt = DateTime.UtcNow;
 
@@ -415,8 +317,8 @@ namespace ServicePilot.Infrastructure.Services
                 Id = e.Id,
                 EmployeeCode = e.EmployeeCode,
                 FullName = e.FullName,
-                Email = e.Email,
-                PhoneNumber = e.PhoneNumber,
+                Email = e.Email ?? string.Empty,
+                PhoneNumber = e.PhoneNumber ?? string.Empty,
                 IsActive = e.IsActive,
 
                 BranchId = e.BranchId,
@@ -456,6 +358,28 @@ namespace ServicePilot.Infrastructure.Services
                 _ => DocumentStatus.Valid
             };
         }
+        public async Task<ApiResponse<EmployeeDetailDto>> GetMyProfileAsync()
+        {
+            var employee = await _repository.GetByUserIdAsync(
+                _currentUser.UserId,
+                _currentUser.CompanyId);
+
+            if (employee == null)
+            {
+                return new ApiResponse<EmployeeDetailDto>
+                {
+                    Success = false,
+                    Message = "Employee profile not found for this account."
+                };
+            }
+
+            return new ApiResponse<EmployeeDetailDto>
+            {
+                Success = true,
+                Data = MapToDetailDto(employee)
+            };
+        }
+
         public async Task<ApiResponse<IEnumerable<ExpiringDocumentDto>>> GetExpiringDocumentsAsync(int days)
         {
             // Clamp to sensible range — no one needs "expiring in 3 years"

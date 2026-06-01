@@ -162,7 +162,11 @@ namespace ServicePilot.Infrastructure.Repositories
 
             var employeeQuery = _context.Employees
                 .AsNoTracking()
-                .Where(x => x.CompanyId == companyId && x.IsActive);
+                .Where(x =>
+                    x.CompanyId == companyId &&
+                    x.IsActive &&
+                    // Only include employees who had joined by the requested year
+                    (!x.JoiningDate.HasValue || x.JoiningDate.Value.Year <= year));
 
             if (employeeId.HasValue)
                 employeeQuery = employeeQuery.Where(x => x.Id == employeeId);
@@ -194,6 +198,20 @@ namespace ServicePilot.Infrastructure.Repositories
 
                 var balances = leaveTypes.Select(lt =>
                 {
+                    // ── Prorate entitlement if employee joined during this year ──
+                    int entitledDays = lt.MaxDaysPerYear;
+                    if (emp.JoiningDate.HasValue && emp.JoiningDate.Value.Year == year)
+                    {
+                        var joinDayNum   = emp.JoiningDate.Value.DayNumber;
+                        var yearEndDay   = yearEnd.DayNumber;
+                        var yearStartDay = yearStart.DayNumber;
+                        int daysFromJoin = yearEndDay - joinDayNum + 1;
+                        int daysInYear   = yearEndDay - yearStartDay + 1;   // 365 or 366
+                        entitledDays = (int)Math.Ceiling(
+                            lt.MaxDaysPerYear * (double)daysFromJoin / daysInYear);
+                    }
+                    // ─────────────────────────────────────────────────────────────
+
                     var taken = empLeaves
                         .Where(l => l.LeaveTypeId == lt.Id && l.Status == RequestStatus.Approved)
                         .Sum(l => l.EndDate.DayNumber - l.StartDate.DayNumber + 1);
@@ -204,12 +222,12 @@ namespace ServicePilot.Infrastructure.Repositories
 
                     return new LeaveTypeBalance
                     {
-                        LeaveTypeName = lt.Name,
-                        IsPaid = lt.IsPaid,
-                        MaxDaysPerYear = lt.MaxDaysPerYear,
-                        DaysTaken = taken,
-                        DaysPending = pending,
-                        DaysRemaining = Math.Max(0, lt.MaxDaysPerYear - taken)
+                        LeaveTypeName  = lt.Name,
+                        IsPaid         = lt.IsPaid,
+                        MaxDaysPerYear = entitledDays,                          // prorated
+                        DaysTaken      = taken,
+                        DaysPending    = pending,
+                        DaysRemaining  = Math.Max(0, entitledDays - taken)
                     };
                 }).ToList();
 

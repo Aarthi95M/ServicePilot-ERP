@@ -19,6 +19,18 @@ namespace ServicePilot.API.Controllers
         }
 
         /// <summary>
+        /// Returns the employee profile linked to the currently authenticated user.
+        /// Used by the mobile app — accessible to all authenticated users (any role).
+        /// Returns 404 if the user's account is not linked to an employee record.
+        /// </summary>
+        [HttpGet("me")]
+        public async Task<IActionResult> GetMyProfile()
+        {
+            var response = await _service.GetMyProfileAsync();
+            return response.Success ? Ok(response) : NotFound(response);
+        }
+
+        /// <summary>
         /// Paged employee list with filters.
         /// HR Manager added — they need this for managing employee profiles.
         /// Dispatcher added — they need to see who is available for job assignment.

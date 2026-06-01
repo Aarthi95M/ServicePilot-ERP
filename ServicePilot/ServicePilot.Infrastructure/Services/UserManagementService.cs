@@ -34,6 +34,7 @@ namespace ServicePilot.Infrastructure.Services
                 .AsNoTracking()
                 .Include(x => x.Branch)
                 .Include(x => x.Employee)
+                .Include(x => x.Role)          // ← required for MapToDto: u.Role.Name
                 .Where(x => x.CompanyId == _currentUser.CompanyId)
                 .OrderBy(x => x.FullName)
                 .ToListAsync();
@@ -47,6 +48,7 @@ namespace ServicePilot.Infrastructure.Services
                 .AsNoTracking()
                 .Include(x => x.Branch)
                 .Include(x => x.Employee)
+                .Include(x => x.Role)          // ← required for MapToDto: u.Role.Name
                 .FirstOrDefaultAsync(x =>
                     x.Id == id &&
                     x.CompanyId == _currentUser.CompanyId);
@@ -239,7 +241,7 @@ namespace ServicePilot.Infrastructure.Services
             FullName = u.FullName,
             Email = u.Email,
             PhoneNumber = u.PhoneNumber,
-            Role = u.Role.Name,
+            Role = u.Role?.Name ?? string.Empty,
             BranchId = u.BranchId,
             BranchName = u.Branch?.Name,
             EmployeeId = u.EmployeeId,

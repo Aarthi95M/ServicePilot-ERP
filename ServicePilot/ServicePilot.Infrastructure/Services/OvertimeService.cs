@@ -21,16 +21,20 @@ namespace ServicePilot.Infrastructure.Services
         private readonly IAuthService _authorization;
         private readonly AppDbContext _context;
 
+        private readonly INotificationService _notifications;
+
         public OvertimeService(
             IOvertimeRepository repository,
             ICurrentUserService currentUser,
             IAuthService authorization,
-            AppDbContext context)
+            AppDbContext context,
+            INotificationService notifications)
         {
-            _repository = repository;
-            _currentUser = currentUser;
+            _repository    = repository;
+            _currentUser   = currentUser;
             _authorization = authorization;
-            _context = context;
+            _context       = context;
+            _notifications = notifications;
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -67,6 +71,13 @@ namespace ServicePilot.Infrastructure.Services
 
             await _repository.AddAsync(request);
             await _repository.SaveChangesAsync();
+
+            // Notify HR / Admins that a new overtime request needs review
+            await _notifications.NotifyCompanyAsync(
+                _currentUser.CompanyId,
+                title:   $"New Overtime Request — {employee.FullName}",
+                message: $"{employee.FullName} requested {dto.HoursRequested}h overtime on {dto.RequestDate:dd MMM yyyy}.",
+                type:    "overtime");
 
             var created = await _repository.GetByIdAsync(
                 request.Id, _currentUser.CompanyId);
@@ -186,6 +197,27 @@ namespace ServicePilot.Infrastructure.Services
 
             _repository.Update(request);
             await _repository.SaveChangesAsync();
+
+            // Notify the employee that their overtime request was actioned
+            var employeeUserId = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.EmployeeId == request.EmployeeId && u.CompanyId == _currentUser.CompanyId)
+                .Select(u => (Guid?)u.Id)
+                .FirstOrDefaultAsync();
+
+            if (employeeUserId.HasValue)
+            {
+                bool approved = dto.Status == RequestStatus.Approved;
+                await _notifications.NotifyUserAsync(
+                    _currentUser.CompanyId,
+                    employeeUserId.Value,
+                    title:   approved ? "Overtime Request Approved" : "Overtime Request Rejected",
+                    message: approved
+                        ? $"Your overtime request for {request.RequestDate:dd MMM yyyy} ({request.HoursRequested}h) has been approved."
+                        : $"Your overtime request for {request.RequestDate:dd MMM yyyy} was rejected." +
+                          (string.IsNullOrWhiteSpace(dto.Reason) ? "" : $" Reason: {dto.Reason}"),
+                    type: "overtime");
+            }
 
             var updated = await _repository.GetByIdAsync(
                 request.Id, _currentUser.CompanyId);

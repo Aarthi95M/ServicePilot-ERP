@@ -27,5 +27,10 @@ namespace ServicePilot.Application.Interfaces.Services
 
         Task<ApiResponse<IEnumerable<ExpiringDocumentDto>>> GetExpiringDocumentsAsync(int days);
 
+        /// <summary>
+        /// Returns the employee record linked to the currently authenticated user.
+        /// Used by the mobile app profile screen.
+        /// </summary>
+        Task<ApiResponse<EmployeeDetailDto>> GetMyProfileAsync();
     }
 }

@@ -1,0 +1,76 @@
+{
+  "expo": {
+    "name": "ServicePilot",
+    "slug": "servicepilot-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "servicepilot",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d1f5c"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ae.servicepilot.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "ServicePilot needs your location to record check-in/out GPS coordinates.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ServicePilot needs background location to log your position while on duty.",
+        "NSCameraUsageDescription": "ServicePilot needs camera access to take job site photos.",
+        "NSPhotoLibraryUsageDescription": "ServicePilot needs photo library access to attach photos to jobs."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d1f5c"
+      },
+      "package": "ae.servicepilot.mobile",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "ServicePilot needs location access to record your check-in/out coordinates."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ServicePilot needs photo access to attach images to jobs.",
+          "cameraPermission": "ServicePilot needs camera access to take job site photos."
+        }
+      ],
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

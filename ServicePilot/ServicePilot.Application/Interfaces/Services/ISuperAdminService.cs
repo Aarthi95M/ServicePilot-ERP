@@ -12,5 +12,6 @@ namespace ServicePilot.Application.Interfaces.Services
     {
         Task<ApiResponse<CompanyOnboardingResponseDto>> OnboardCompanyAsync(CreateCompanyDto dto);
         Task<ApiResponse<bool>> DeactivateCompanyAsync(Guid companyId);
+        Task<ApiResponse<List<CompanySummaryDto>>> ListCompaniesAsync();
     }
 }

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\lenovo\\\\Documents\\\\Aarthi\\\\ServicePilotApp\\\\servicepilot-mobile\\\\lib\\\\utils\")"
+    ]
+  }
+}
