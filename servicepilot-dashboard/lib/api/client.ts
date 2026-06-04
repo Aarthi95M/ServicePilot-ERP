@@ -38,7 +38,8 @@ const apiClient = axios.create({
   // In .NET: Configuration["ApiSettings:BaseUrl"]
   // The NEXT_PUBLIC_ prefix makes it available in the browser.
   // Without NEXT_PUBLIC_, the variable only exists on the server.
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7001/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://localhost:5113/api',
+  //'https://localhost:7001/api',
 
   // Timeout after 15 seconds — same as HttpClient.Timeout
   timeout: 15000,
@@ -64,9 +65,12 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const storeState = useAuthStore.getState();
+    // Check Zustand store first, then sessionStorage (no-remember sessions),
+    // then localStorage (remembered sessions) as fallback.
     const token =
       storeState.token ??
       storeState.user?.token ??
+      sessionStorage.getItem('sp-token') ??
       localStorage.getItem('sp-token');
 
     if (token) {

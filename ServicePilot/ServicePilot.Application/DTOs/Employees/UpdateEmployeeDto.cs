@@ -24,6 +24,9 @@ namespace ServicePilot.Application.DTOs.Employees
         public DateOnly? EmiratesIdExpiryDate { get; set; }
         public DateOnly? JoiningDate { get; set; }
 
+        /// <summary>Monthly basic salary in AED.</summary>
+        public decimal? BasicSalary { get; set; }
+
         public bool IsActive { get; set; }
     }
 }

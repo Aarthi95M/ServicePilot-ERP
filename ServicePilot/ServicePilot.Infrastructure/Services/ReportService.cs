@@ -140,9 +140,6 @@ namespace ServicePilot.Infrastructure.Services
             if (from > to)
                 return Fail<JobReportDto>("From date must be before To date.");
 
-            if ((to.DayNumber - from.DayNumber) > 90)
-                return Fail<JobReportDto>("Date range cannot exceed 90 days.");
-
             if (_authorization.IsSupervisor())
                 branchId = _currentUser.BranchId;
 
@@ -153,6 +150,8 @@ namespace ServicePilot.Infrastructure.Services
             var jobQuery = _context.Jobs
                 .AsNoTracking()
                 .Include(x => x.AssignedEmployee)
+                .Include(x => x.JobType)
+                .Include(x => x.JobStatus)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.CreatedAt >= fromDt &&
@@ -218,15 +217,36 @@ namespace ServicePilot.Infrastructure.Services
                 .OrderByDescending(x => x.Completed)
                 .ToList();
 
+            // Individual job rows for the detail table
+            var jobRows = jobs
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new JobReportJobRow
+                {
+                    Id                   = x.Id,
+                    JobNumber            = x.JobNumber ?? string.Empty,
+                    CustomerName         = x.CustomerName ?? string.Empty,
+                    JobTypeName          = x.JobType?.Name,
+                    StatusName           = x.JobStatus?.Name,
+                    StatusColor          = x.JobStatus?.ColorCode,
+                    AssignedEmployeeName = x.AssignedEmployee?.FullName,
+                    AssignedEmployeeCode = x.AssignedEmployee?.EmployeeCode,
+                    PriorityLabel        = x.Priority ?? "Medium",
+                    ScheduledAt          = x.ScheduledAt,
+                    CompletedAt          = x.CompletedAt,
+                    CreatedAt            = x.CreatedAt,
+                })
+                .ToList();
+
             return Ok(new JobReportDto
             {
-                ReportFrom = from,
-                ReportTo = to,
-                TotalJobs = totalJobs,
-                CompletedJobs = completedJobs,
-                ActiveJobs = activeJobs,
+                ReportFrom     = from,
+                ReportTo       = to,
+                TotalJobs      = totalJobs,
+                CompletedJobs  = completedJobs,
+                ActiveJobs     = activeJobs,
                 CompletionRate = completionRate,
-                Rows = rows
+                Rows           = rows,
+                Jobs           = jobRows,
             });
         }
 

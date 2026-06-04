@@ -54,6 +54,18 @@ namespace ServicePilot.API.Controllers
             return Ok(response);
         }
 
+        /// <summary>
+        /// Employee's own attendance history (paged). Accessible by the same roles as check-in.
+        /// Each employee sees only their own records.
+        /// </summary>
+        [HttpGet("my-history")]
+        [Authorize(Roles = Roles.CheckInAccess)]       // Admin,Supervisor,Employee
+        public async Task<IActionResult> GetMyHistory([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var response = await _service.GetMyHistoryAsync(page, pageSize);
+            return Ok(response);
+        }
+
         /// <summary>Periodic GPS breadcrumb from mobile.</summary>
         [HttpPost("gps-log")]
         [Authorize(Roles = Roles.CheckInAccess)]       // Admin,Supervisor,Employee
@@ -99,6 +111,21 @@ namespace ServicePilot.API.Controllers
         {
             var response = await _service.GetLiveLocationsAsync();
             return Ok(response);
+        }
+
+        /// <summary>
+        /// Manual attendance adjustment by a Supervisor, HR Manager, or Admin.
+        /// Allows correcting check-in / check-out times, or clearing a check-out
+        /// so the employee can re-checkout via the mobile app.
+        /// Supervisor access is automatically scoped to their branch.
+        /// </summary>
+        [HttpPut("{id:guid}/adjust")]
+        [Authorize(Roles = Roles.AttendanceReadAccess)] // Admin, HRManager, Supervisor
+        public async Task<IActionResult> AdjustRecord(
+            Guid id, [FromBody] AdjustAttendanceRequestDto dto)
+        {
+            var response = await _service.AdjustAttendanceAsync(id, dto);
+            return response.Success ? Ok(response) : BadRequest(response);
         }
 
         /// <summary>

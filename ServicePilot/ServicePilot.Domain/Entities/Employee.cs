@@ -31,6 +31,9 @@ public partial class Employee
 
     public DateOnly? JoiningDate { get; set; }
 
+    /// <summary>Monthly basic salary in AED. Used to compute overtime hourly rate = BasicSalary / 30 / 8.</summary>
+    public decimal? BasicSalary { get; set; }
+
     public bool IsActive { get; set; }
 
     public DateTime CreatedAt { get; set; }

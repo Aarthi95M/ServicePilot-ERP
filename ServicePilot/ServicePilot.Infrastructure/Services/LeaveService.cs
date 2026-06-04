@@ -92,16 +92,34 @@ namespace ServicePilot.Infrastructure.Services
             await _repository.AddAsync(request);
             await _repository.SaveChangesAsync();
 
-            // Notify HR / Admins that a new leave request needs review
-            await _notifications.NotifyCompanyAsync(
-                _currentUser.CompanyId,
-                title:   $"New Leave Request — {employee.FullName}",
-                message: $"{employee.FullName} submitted a {leaveType.Name} request " +
-                         $"({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}).",
-                type:    "leave");
+            // Notify HR / Admins — non-fatal: a notification failure must NOT
+            // roll back the already-saved leave request or return a 500.
+            try
+            {
+                await _notifications.NotifyCompanyAsync(
+                    _currentUser.CompanyId,
+                    title:   $"New Leave Request — {employee.FullName}",
+                    message: $"{employee.FullName} submitted a {leaveType.Name} request " +
+                             $"({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}).",
+                    type:    "leave");
+            }
+            catch { /* swallow — leave is already persisted */ }
 
-            var created = await _repository.GetByIdAsync(request.Id, _currentUser.CompanyId);
-            return Ok(MapToDto(created!));
+            // Post-save fetch — wrapped defensively so a transient query failure
+            // (e.g. schema mismatch during migration) never hides a successful save.
+            try
+            {
+                var created = await _repository.GetByIdAsync(request.Id, _currentUser.CompanyId);
+                return Ok(MapToDto(created!));
+            }
+            catch
+            {
+                // The leave request was persisted; return a response from the objects
+                // we already have in memory so the client receives a 200.
+                request.Employee  = employee;
+                request.LeaveType = leaveType;
+                return Ok(MapToDto(request));
+            }
         }
 
         // ════════════════════════════════════════════════════════════════

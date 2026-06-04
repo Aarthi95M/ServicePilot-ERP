@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/reports/page.tsx
 // Reports hub — 4 report tabs: Attendance, Jobs, Leave, Expiry
 
@@ -52,8 +52,10 @@ const TABS = [
 
 type Tab = typeof TABS[number]['id'];
 
-// Default date range: first day of current month to today
+// Default date range:
+//   Job / Attendance default: 1 Jan of current year → today (shows all year's data on open)
 const today = new Date().toISOString().slice(0, 10);
+const firstOfYear  = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
 const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 
 function exportCsv(filename: string, rows: string[][]) {
@@ -67,8 +69,10 @@ function exportCsv(filename: string, rows: string[][]) {
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<Tab>('attendance');
+  // Attendance: current-month default (daily data — keeps rows manageable)
+  // Jobs: full-year default so existing jobs are visible immediately
   const [atParams, setAtParams] = useState({ from: firstOfMonth, to: today });
-  const [jobParams, setJobParams] = useState({ from: firstOfMonth, to: today });
+  const [jobParams, setJobParams] = useState({ from: firstOfYear,  to: today });
   const [leaveYear, setLeaveYear] = useState(new Date().getFullYear());
   const [expiryDays, setExpiryDays] = useState(30);
 
@@ -82,9 +86,9 @@ export default function ReportsPage() {
       const rows = [['Employee','Branch','Present Days','Late Days','Absent Days','Total Hours','Avg Check-in'],
         ...attReport.data.rows.map((r: any) => [r.employeeName, r.branchName, r.presentDays, r.lateDays, r.absentDays, r.totalHours?.toFixed(1), r.averageCheckInTime ?? ''])];
       exportCsv(`attendance-${atParams.from}-to-${atParams.to}.csv`, rows);
-    } else if (tab === 'jobs' && jobReport.data?.rows?.length) {
-      const rows = [['Job Number','Customer','Type','Status','Assigned To','Scheduled','Completed'],
-        ...jobReport.data.rows.map((r: any) => [r.jobNumber, r.customerName, r.jobTypeName, r.statusName, r.assignedEmployeeName ?? '', r.scheduledAt ?? '', r.completedAt ?? ''])];
+    } else if (tab === 'jobs' && jobReport.data?.jobs?.length) {
+      const rows = [['Job Number','Customer','Type','Status','Assigned To','Priority','Scheduled','Completed'],
+        ...jobReport.data.jobs.map((r: any) => [r.jobNumber, r.customerName, r.jobTypeName ?? '', r.statusName ?? '', r.assignedEmployeeName ?? '', r.priorityLabel, r.scheduledAt ? new Date(r.scheduledAt).toLocaleDateString('en-GB') : '', r.completedAt ? new Date(r.completedAt).toLocaleDateString('en-GB') : ''])];
       exportCsv(`jobs-${jobParams.from}-to-${jobParams.to}.csv`, rows);
     } else if (tab === 'leave' && leaveReport.data?.length) {
       const rows = [['Employee','Leave Type','Start','End','Days','Status'],
@@ -111,7 +115,7 @@ export default function ReportsPage() {
           <h1 className="text-[22px] font-bold tracking-tight text-gray-900">Analytics &amp; Reports</h1>
           <p className="mt-0.5 text-[13px] text-gray-500">Performance insights and workforce analytics</p>
         </div>
-        <button onClick={handleExport} className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-[13px] font-semibold text-white hover:bg-blue-800 transition-colors">
+        <button onClick={handleExport} className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
         </button>
@@ -121,7 +125,7 @@ export default function ReportsPage() {
       <div className="mb-6 flex gap-1 rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm w-fit">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 rounded-lg px-5 py-2 text-[13px] font-medium transition-colors ${tab === t.id ? 'bg-blue-700 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
+            className={`flex items-center gap-2 rounded-lg px-5 py-2 text-[13px] font-medium transition-colors ${tab === t.id ? 'bg-btn text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
             {t.label}
           </button>
         ))}
@@ -225,39 +229,61 @@ export default function ReportsPage() {
           </div>
 
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            {jobReport.isLoading && <TableSkeleton cols={6} rows={5} />}
+            {jobReport.isLoading && <TableSkeleton cols={7} rows={5} />}
             {jobReport.data && (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    {['Technician','Total Assigned','Completed','In Progress','Completion Rate','Avg Duration'].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {(jobReport.data.rows || []).map((row: any) => (
-                    <tr key={row.employeeId} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="text-[13px] font-medium text-gray-900">{row.employeeName}</div>
-                        <div className="text-[11px] font-mono text-gray-400">{row.employeeCode}</div>
-                      </td>
-                      <td className="px-5 py-3.5 text-[13px] text-gray-700 tabular-nums">{row.totalAssigned}</td>
-                      <td className="px-5 py-3.5"><span className="font-medium text-green-700">{row.completed}</span></td>
-                      <td className="px-5 py-3.5"><span className="font-medium text-blue-600">{row.inProgress}</span></td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-100">
-                            <div className="h-full rounded-full bg-green-500" style={{ width: `${row.completionRate}%` }}/>
-                          </div>
-                          <span className="text-[12px] font-medium text-gray-700">{row.completionRate}%</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-[13px] text-gray-700">{row.avgDurationHours ? `${row.avgDurationHours.toFixed(1)}h` : '—'}</td>
+              <>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/50">
+                      {['Job #','Customer','Type','Status','Assigned To','Scheduled','Priority'].map(h => (
+                        <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {(jobReport.data.jobs || []).map((row: any) => (
+                      <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <span className="font-mono text-[13px] font-semibold text-blue-700">{row.jobNumber}</span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="text-[13px] font-medium text-gray-900">{row.customerName}</div>
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] text-gray-500">{row.jobTypeName || '—'}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                            style={{
+                              backgroundColor: row.statusColor ? `${row.statusColor}22` : '#f1f5f9',
+                              color: row.statusColor ?? '#475569',
+                            }}>
+                            {row.statusName || '—'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] text-gray-700">
+                          {row.assignedEmployeeName
+                            ? <><div>{row.assignedEmployeeName}</div><div className="text-[11px] font-mono text-gray-400">{row.assignedEmployeeCode}</div></>
+                            : <span className="text-gray-400 italic">Unassigned</span>}
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] text-gray-500">
+                          {row.scheduledAt ? new Date(row.scheduledAt).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—'}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`text-[12px] font-medium ${
+                            row.priorityLabel === 'Critical' ? 'text-red-600' :
+                            row.priorityLabel === 'High' ? 'text-orange-600' :
+                            row.priorityLabel === 'Medium' ? 'text-amber-600' : 'text-gray-500'
+                          }`}>{row.priorityLabel}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(!jobReport.data.jobs || jobReport.data.jobs.length === 0) && (
+                  <div className="py-12 text-center text-[13px] text-gray-400">
+                    No jobs found in this date range — try widening the range
+                  </div>
+                )}
+              </>
             )}
             {!jobReport.isLoading && !jobReport.data && (
               <div className="py-12 text-center text-[13px] text-gray-400">Select a date range to generate the report</div>

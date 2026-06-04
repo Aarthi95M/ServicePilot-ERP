@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(auth)/forgot-password/page.tsx
 // Users enter their email address here.
 // Backend generates a reset token and (eventually) sends it via email.
@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
           </p>
           <Link
             href="/login"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-btn px-6 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-btn-hover"
           >
             Back to Sign in
           </Link>
@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-700">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
               <rect x="2" y="7" width="20" height="14" rx="2"/>
               <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
@@ -106,7 +106,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-70"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-btn px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-btn-hover disabled:opacity-70"
             >
               {isPending ? (
                 <>

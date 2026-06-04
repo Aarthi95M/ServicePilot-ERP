@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/jobs/[id]/page.tsx — v2
 // Uses global toast, fixed assign + status flow
 
@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLookups } from '@/lib/hooks/useLookups';
 import { useToast } from '@/components/shared/ToastProvider';
 import apiClient from '@/lib/api/client';
+import { LeafletMap } from '@/components/shared/LeafletMap';
 
 function useJobDetail(id: string) {
   return useQuery({
@@ -177,7 +178,7 @@ export default function JobDetailPage() {
             </button>
 
             {showAssignPicker && (
-              <div className="absolute right-0 top-11 z-50 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+              <div className="absolute right-0 top-11 z-[2000] w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
                 <div className="border-b border-gray-100 px-4 py-3">
                   <div className="text-[13px] font-semibold text-gray-900">Assign Employee</div>
                   {job.assignedEmployeeName && (
@@ -198,7 +199,7 @@ export default function JobDetailPage() {
                       Cancel
                     </button>
                     <button onClick={handleAssign} disabled={assignEmployee.isPending || !selectedEmployeeId}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-700 py-2 text-[12px] font-semibold text-white hover:bg-blue-800 disabled:opacity-60 transition-colors">
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-btn py-2 text-[12px] font-semibold text-white hover:bg-btn-hover disabled:opacity-60 transition-colors">
                       {assignEmployee.isPending ? (
                         <><svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Assigning...</>
                       ) : 'Assign'}
@@ -213,7 +214,7 @@ export default function JobDetailPage() {
           <div className="relative">
             <button onClick={() => { setShowStatusPicker(v => !v); setShowAssignPicker(false); }}
               disabled={updateStatus.isPending}
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-70">
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover disabled:opacity-70">
               {updateStatus.isPending ? (
                 <><svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Updating...</>
               ) : (
@@ -222,7 +223,7 @@ export default function JobDetailPage() {
             </button>
 
             {showStatusPicker && (
-              <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+              <div className="absolute right-0 top-11 z-[2000] w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
                 <div className="border-b border-gray-100 px-4 py-2.5">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Change status to</div>
                 </div>
@@ -324,7 +325,7 @@ export default function JobDetailPage() {
                 <div className="absolute left-1.5 top-0 bottom-0 w-px bg-gray-100"/>
                 {job.statusHistory.map((h: any) => (
                   <div key={h.id} className="relative mb-4 last:mb-0">
-                    <div className="absolute -left-4 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-600 shadow-sm"/>
+                    <div className="absolute -left-4 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-btn shadow-sm"/>
                     <div className="text-[13px] font-medium text-gray-900">
                       {h.oldStatusName ? `${h.oldStatusName} → ${h.newStatusName}` : `Set to ${h.newStatusName}`}
                     </div>
@@ -372,28 +373,37 @@ export default function JobDetailPage() {
                 </a>
               )}
             </div>
-            {/* Map placeholder — install react-leaflet or @vis.gl/react-google-maps for a live map */}
-            <div className="relative h-[200px] bg-[#e8f0f7]" style={{
-              backgroundImage: 'linear-gradient(rgba(30,60,120,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(30,60,120,0.06) 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }}>
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 shadow-md mx-auto">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            {/* Job location map — shows pin when lat/lng available */}
+            {job.latitude && job.longitude ? (
+              <LeafletMap
+                center={[Number(job.latitude), Number(job.longitude)]}
+                zoom={15}
+                markers={[{
+                  lat:   Number(job.latitude),
+                  lng:   Number(job.longitude),
+                  label: job.customerName ?? 'Job site',
+                  popup: job.address ?? job.customerName ?? 'Job site',
+                  color: 'blue',
+                }]}
+                height="200px"
+              />
+            ) : (
+              /* No coordinates — show address-only placeholder */
+              <div className="flex h-[200px] flex-col items-center justify-center gap-2 bg-[#f1f5f9]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
                 </div>
                 {job.address ? (
-                  <div className="mt-2 max-w-[160px] rounded-lg bg-white px-3 py-1.5 text-center text-[11px] text-gray-700 shadow-sm">
-                    {job.address}
-                  </div>
+                  <div className="max-w-[200px] text-center text-[11px] text-gray-600">{job.address}</div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-gray-400">No address set</div>
+                  <div className="text-[11px] text-gray-400">No location set</div>
                 )}
+                <div className="text-[10px] text-gray-300">GPS coordinates not available</div>
               </div>
-              {/* Install react-leaflet badge */}
-              <div className="absolute bottom-2 right-2 rounded-md bg-white/80 px-2 py-1 text-[9px] text-gray-400 shadow-sm backdrop-blur-sm">
-                Live map: install react-leaflet
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -410,7 +420,7 @@ export default function JobDetailPage() {
 
       {/* Click outside to close dropdowns */}
       {(showStatusPicker || showAssignPicker) && (
-        <div className="fixed inset-0 z-40"
+        <div className="fixed inset-0 z-[1900]"
           onClick={() => { setShowStatusPicker(false); setShowAssignPicker(false); }}/>
       )}
     </div>

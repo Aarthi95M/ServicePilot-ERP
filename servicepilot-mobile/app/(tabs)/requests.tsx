@@ -145,7 +145,7 @@ function OvertimeModal({ visible, onClose }: { visible: boolean; onClose: () => 
     const h = parseFloat(hours);
     if (isNaN(h) || h <= 0 || h > 24) { Alert.alert('Validation', 'Please enter valid hours (0–24).'); return; }
     if (!reason.trim()) { Alert.alert('Validation', 'Please provide a reason.'); return; }
-    mutate({ date, hours: h, reason: reason.trim() });
+    mutate({ requestDate: date, hoursRequested: h, reason: reason.trim() });
   };
 
   return (
@@ -202,18 +202,19 @@ export default function RequestsScreen() {
 
   const { data: leaveData,    isLoading: l1, refetch: refetchLeave } = useQuery({
     queryKey: ['leave-requests'],
-    queryFn:  () => leaveApi.getMyRequests(1, 20),
+    queryFn:  () => leaveApi.getMyRequests(),
     staleTime: 30_000,
   });
 
   const { data: overtimeData, isLoading: l2, refetch: refetchOT } = useQuery({
     queryKey: ['overtime-requests'],
-    queryFn:  () => overtimeApi.getMyRequests(1, 20),
+    queryFn:  () => overtimeApi.getMyRequests(),
     staleTime: 30_000,
   });
 
-  const leaveItems   = leaveData?.items   ?? [];
-  const overtimeItems = overtimeData?.items ?? [];
+  // getMyRequests returns the array directly (ApiResponse<IEnumerable<T>> → r.data.data)
+  const leaveItems    = (leaveData    as any[]) ?? [];
+  const overtimeItems = (overtimeData as any[]) ?? [];
   const isLoading    = tab === 'leave' ? l1 : l2;
   const items        = tab === 'leave' ? leaveItems : overtimeItems;
 

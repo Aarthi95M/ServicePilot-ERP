@@ -261,6 +261,89 @@ namespace ServicePilot.Infrastructure.Services
             return Ok(MapToDto(log, employee));
         }
 
+        /// <summary>
+        /// Employee's own attendance history — paged, ordered newest first.
+        /// Only returns records belonging to the calling employee.
+        /// </summary>
+        public async Task<ApiResponse<PagedResult<AttendanceResponseDto>>> GetMyHistoryAsync(int page, int pageSize)
+        {
+            var employee = await GetEmployeeForCurrentUserAsync();
+            if (employee == null)
+                return Fail<PagedResult<AttendanceResponseDto>>(
+                    "No employee profile is linked to this user account.");
+
+            var query = _context.AttendanceLogs
+                .AsNoTracking()
+                .Where(x =>
+                    x.EmployeeId == employee.Id &&
+                    x.CompanyId == _currentUser.CompanyId)
+                .OrderByDescending(x => x.CheckInTime);
+
+            var total = await query.CountAsync();
+            var items = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var dtos = items.Select(x => MapToDto(x, employee)).ToList();
+
+            return Ok(new PagedResult<AttendanceResponseDto>
+            {
+                Items      = dtos,
+                TotalCount = total,
+                Page       = page,
+                PageSize   = pageSize,
+            });
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // MANUAL ADJUSTMENT — supervisor / admin corrects a record
+        // ════════════════════════════════════════════════════════════════
+
+        public async Task<ApiResponse<AttendanceResponseDto>> AdjustAttendanceAsync(
+            Guid recordId, AdjustAttendanceRequestDto dto)
+        {
+            // Load record with Employee + Branch for scope check
+            var log = await _context.AttendanceLogs
+                .Include(x => x.Employee)
+                    .ThenInclude(e => e.Branch)
+                .FirstOrDefaultAsync(x =>
+                    x.Id == recordId &&
+                    x.CompanyId == _currentUser.CompanyId);
+
+            if (log == null)
+                return Fail<AttendanceResponseDto>(
+                    "Attendance record not found.");
+
+            // Supervisor can only adjust employees in their own branch
+            if (_authorization.IsSupervisor() &&
+                log.Employee.BranchId != _currentUser.BranchId)
+                return Fail<AttendanceResponseDto>(
+                    "You can only adjust attendance records for employees in your branch.");
+
+            // Check-in cannot be in the future
+            if (dto.CheckInTime > DateTime.UtcNow.AddMinutes(5))
+                return Fail<AttendanceResponseDto>(
+                    "Check-in time cannot be set to a future date/time.");
+
+            // If checkout provided: must be strictly after check-in
+            if (dto.CheckOutTime.HasValue && dto.CheckOutTime.Value <= dto.CheckInTime)
+                return Fail<AttendanceResponseDto>(
+                    "Check-out time must be after check-in time.");
+
+            // Apply changes
+            log.CheckInTime  = dto.CheckInTime;
+            log.CheckOutTime = dto.CheckOutTime;   // null = clears checkout → employee can re-checkout via mobile
+            log.Status       = DetermineStatus(dto.CheckInTime);
+            log.UpdatedAt    = DateTime.UtcNow;
+            // GPS coords are deliberately NOT changed — they reflect the real device location
+
+            _repository.Update(log);
+            await _repository.SaveChangesAsync();
+
+            return Ok(MapToDto(log, log.Employee));
+        }
+
         public async Task<ApiResponse<bool>> LogGpsAsync(GpsLogRequestDto dto)
         {
             var employee = await GetEmployeeForCurrentUserAsync();

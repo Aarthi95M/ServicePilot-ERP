@@ -1,15 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace ServicePilot.Application.DTOs.Reports
 {
-    /// <summary>
-    /// Job completion report for a date range.
-    /// Shows completion rates, average duration, and technician performance.
-    /// </summary>
     public class JobReportDto
     {
         public DateOnly ReportFrom { get; set; }
@@ -17,8 +7,13 @@ namespace ServicePilot.Application.DTOs.Reports
         public int TotalJobs { get; set; }
         public int CompletedJobs { get; set; }
         public int ActiveJobs { get; set; }
-        public double CompletionRate { get; set; }  // percentage
+        public double CompletionRate { get; set; }
+
+        /// <summary>Per-technician aggregated summary rows.</summary>
         public List<JobReportRowDto> Rows { get; set; } = new();
+
+        /// <summary>Individual job records for the detail table.</summary>
+        public List<JobReportJobRow> Jobs { get; set; } = new();
     }
 
     public class JobReportRowDto
@@ -30,6 +25,23 @@ namespace ServicePilot.Application.DTOs.Reports
         public int Completed { get; set; }
         public int InProgress { get; set; }
         public double CompletionRate { get; set; }
-        public double? AvgDurationHours { get; set; } // avg (CompletedAt - StartedAt)
+        public double? AvgDurationHours { get; set; }
+    }
+
+    /// <summary>One row per job in the detail table.</summary>
+    public class JobReportJobRow
+    {
+        public Guid Id { get; set; }
+        public string JobNumber { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public string? JobTypeName { get; set; }
+        public string? StatusName { get; set; }
+        public string? StatusColor { get; set; }
+        public string? AssignedEmployeeName { get; set; }
+        public string? AssignedEmployeeCode { get; set; }
+        public string PriorityLabel { get; set; } = string.Empty;
+        public DateTime? ScheduledAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

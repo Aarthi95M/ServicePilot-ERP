@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/overtime/page.tsx
 // Overtime requests — list + detail panel with approve/reject
 // Matches your Figma: OT-001 detail panel with AED calculations
@@ -36,8 +36,16 @@ const STATUS_CONFIG: Record<string, { cls: string }> = {
   Cancelled: { cls: 'bg-gray-100 text-gray-500'    },
 };
 
-// Overtime rate — in a real app this comes from employee salary data
-const OT_RATE_PER_HOUR = 45; // AED
+// Helper: format AED amount for display
+function fmtAed(amount: number | null | undefined) {
+  if (amount == null) return '—';
+  return `AED ${Number(amount).toFixed(0)}`;
+}
+
+function fmtRate(rate: number | null | undefined) {
+  if (rate == null) return 'Rate not set';
+  return `AED ${Number(rate).toFixed(2)}/hour`;
+}
 
 export default function OvertimePage() {
   const [params, setParams] = useState({ page: 1, pageSize: 20, status: 'Pending' });
@@ -84,7 +92,7 @@ export default function OvertimePage() {
           <div className="mb-4 flex gap-2">
             {(['', 'Pending', 'Approved', 'Rejected'] as const).map(s => (
               <button key={s} onClick={() => setParams(p => ({ ...p, status: s || undefined as any, page: 1 }))}
-                className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors ${(params.status === s || (!params.status && !s)) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors ${(params.status === s || (!params.status && !s)) ? 'bg-btn text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {s || 'All'}
               </button>
             ))}
@@ -114,7 +122,7 @@ export default function OvertimePage() {
                     const colors = ['#0d9488','#2563eb','#7c3aed','#d97706'];
                     const color = colors[req.employeeName?.length % colors.length] || '#2563eb';
                     const isSelected = selected?.id === req.id;
-                    const amount = (req.hoursRequested * OT_RATE_PER_HOUR).toFixed(0);
+                    const amount = req.totalAmount != null ? Number(req.totalAmount).toFixed(0) : null;
 
                     return (
                       <div key={req.id}
@@ -134,13 +142,13 @@ export default function OvertimePage() {
                             </span>
                           </div>
                           <div className="mt-0.5 text-[12px] text-gray-500">
-                            Date: {req.requestDate} · {req.hoursRequested}h · AED {amount}
+                            Date: {req.requestDate} · {req.hoursRequested}h{amount ? ` · AED ${amount}` : ''}
                           </div>
                           {req.reason && <div className="text-[11px] text-gray-400 truncate">{req.reason}</div>}
                         </div>
                         {/* Amount */}
                         <div className="text-right">
-                          <div className="text-[14px] font-bold text-gray-900">AED {amount}</div>
+                          <div className="text-[14px] font-bold text-gray-900">{amount ? `AED ${amount}` : '—'}</div>
                           <div className="text-[11px] text-gray-400">{req.hoursRequested}h</div>
                         </div>
                       </div>
@@ -173,7 +181,7 @@ export default function OvertimePage() {
           {selected ? (
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm sticky top-[76px] overflow-hidden">
               {/* Blue header strip — like your Figma */}
-              <div className="bg-blue-700 px-5 py-4">
+              <div className="bg-btn px-5 py-4">
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-[13px] font-bold text-white">
                     OT-{selected.id.slice(-3).toUpperCase()}
@@ -205,17 +213,21 @@ export default function OvertimePage() {
                   </div>
                 )}
 
-                {/* AED Calculation — matches your Figma */}
+                {/* AED Calculation */}
                 <div className="rounded-lg bg-gray-50 p-4">
                   <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Calculation</div>
-                  <OTRow label="Overtime Rate" value={`AED ${OT_RATE_PER_HOUR}/hour`} />
+                  <OTRow label="Overtime Rate" value={fmtRate(selected.overtimeRatePerHour)} />
                   <OTRow label="Hours" value={`${selected.hoursRequested}h`} />
                   <div className="mt-3 border-t border-gray-200 pt-3">
                     <div className="flex items-center justify-between">
                       <span className="text-[13px] font-semibold text-gray-900">Total Amount</span>
-                      <span className="text-[18px] font-bold text-blue-700">
-                        AED {(selected.hoursRequested * OT_RATE_PER_HOUR).toFixed(0)}
-                      </span>
+                      {selected.totalAmount != null ? (
+                        <span className="text-[18px] font-bold text-blue-700">
+                          AED {Number(selected.totalAmount).toFixed(0)}
+                        </span>
+                      ) : (
+                        <span className="text-[13px] text-gray-400 italic">Set salary on employee profile</span>
+                      )}
                     </div>
                   </div>
                 </div>

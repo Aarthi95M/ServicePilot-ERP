@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 // ============================================================
 // app/(auth)/login/page.tsx
 //
@@ -73,12 +73,12 @@ function LoginForm() {
         token,
       };
 
-      // Save to Zustand store (also saves to localStorage automatically)
-      login(authUser);
-        // ← ADD THIS: also save token separately so interceptor finds it
-  localStorage.setItem('sp-token', token);
+      // Save to Zustand store — pass rememberMe so the store uses
+      // localStorage (remember=true) or sessionStorage (remember=false)
+      login(authUser, rememberMe);
 
-      // Save token in cookie so middleware.ts (server-side) can read it
+      // Save token in cookie so middleware.ts (server-side) can read it.
+      // max-age: 30 days if remembered, 8 hours if not (session cookie).
       document.cookie = `sp-token=${token}; path=/; max-age=${
         rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 8
       }; SameSite=Strict`;
@@ -105,7 +105,7 @@ function LoginForm() {
       <div className="flex w-[42%] min-w-[420px] flex-col bg-white px-14 py-12">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-12">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-700 flex-shrink-0">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-btn flex-shrink-0">
             <svg
               width="20"
               height="20"
@@ -264,9 +264,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loginMutation.isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700
-                         px-4 py-2.5 text-[14px] font-semibold text-white transition-colors
-                         hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-80"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-btn px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-btn-hover disabled:cursor-not-allowed disabled:opacity-80"
             >
               {loginMutation.isPending ? (
                 <>
@@ -319,8 +317,7 @@ function LoginForm() {
         <div className="relative flex flex-1 flex-col justify-center">
           {/* Live pill */}
           <div
-            className="mb-8 flex w-fit items-center gap-2 rounded-full border border-white/15
-                          bg-white/10 px-4 py-1.5 text-[12px] font-medium text-white/90 backdrop-blur-sm"
+            className="mb-8 flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-[12px] font-medium text-white/90 backdrop-blur-sm"
           >
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             Live Tracking Active
@@ -371,8 +368,7 @@ function LoginForm() {
             ].map(({ color, ic, title, desc, path }) => (
               <div
                 key={title}
-                className="rounded-xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-sm
-                           transition-colors hover:bg-white/[0.11]"
+                className="rounded-xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-sm transition-colors hover:bg-white/[0.11]"
               >
                 <div
                   className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-lg"

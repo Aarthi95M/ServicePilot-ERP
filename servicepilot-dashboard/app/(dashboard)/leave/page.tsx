@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/leave/page.tsx
 // Leave requests — list with approve/reject + leave balance summary tab
 
@@ -97,7 +97,7 @@ export default function LeavePage() {
         <div className="flex rounded-lg border border-gray-200 bg-white p-1">
           {(['requests', 'summary'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`rounded-md px-4 py-1.5 text-[13px] font-medium capitalize transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-800'}`}>
+              className={`rounded-md px-4 py-1.5 text-[13px] font-medium capitalize transition-colors ${tab === t ? 'bg-btn text-white' : 'text-gray-600 hover:text-gray-800'}`}>
               {t === 'requests' ? 'Requests' : 'Balance Summary'}
             </button>
           ))}
@@ -113,7 +113,7 @@ export default function LeavePage() {
             <div className="mb-4 flex flex-wrap items-center gap-3">
               {(['', 'Pending', 'Approved', 'Rejected', 'Cancelled'] as const).map(s => (
                 <button key={s} onClick={() => setParams(p => ({ ...p, status: s || undefined as any, page: 1 }))}
-                  className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors ${(params.status === s || (!params.status && !s)) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors ${(params.status === s || (!params.status && !s)) ? 'bg-btn text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                   {s || 'All'}
                 </button>
               ))}

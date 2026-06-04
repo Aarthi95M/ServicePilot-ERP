@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/employees/new/page.tsx
 // Fixed: loading spinners on buttons + API error display + phone field name
 
@@ -17,6 +17,7 @@ interface EmployeeFormData {
   fullName: string;
   email: string;
   phoneNumber: string;
+  basicSalary: string;
   branchId: string;
   departmentId: string;
   positionId: string;
@@ -28,7 +29,7 @@ interface EmployeeFormData {
 }
 
 const EMPTY: EmployeeFormData = {
-  fullName: '', email: '', phoneNumber: '',
+  fullName: '', email: '', phoneNumber: '', basicSalary: '',
   branchId: '', departmentId: '', positionId: '',
   joiningDate: '', visaExpiryDate: '', passportExpiryDate: '',
   emiratesIdExpiryDate: '', isActive: true,
@@ -59,6 +60,7 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
         fullName:             existingEmployee.fullName || '',
         email:                existingEmployee.email || '',
         phoneNumber:          existingEmployee.phoneNumber || '',
+        basicSalary:          existingEmployee.basicSalary != null ? String(existingEmployee.basicSalary) : '',
         branchId:             existingEmployee.branchId || '',
         departmentId:         existingEmployee.departmentId || '',
         positionId:           existingEmployee.positionId || '',
@@ -121,6 +123,7 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
       fullName:             form.fullName.trim(),
       email:                form.email || undefined,
       phoneNumber:          form.phoneNumber || undefined,
+      basicSalary:          form.basicSalary ? parseFloat(form.basicSalary) : undefined,
       branchId:             form.branchId || undefined,
       departmentId:         form.departmentId || undefined,
       positionId:           form.positionId || undefined,
@@ -177,7 +180,7 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
         {STEPS.map((s, i) => (
           <div key={s.id} className="flex items-center">
             <div className="flex items-center gap-2">
-              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold transition-colors ${step === s.id ? 'bg-blue-600 text-white' : step > s.id ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold transition-colors ${step === s.id ? 'bg-btn text-white' : step > s.id ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
                 {step > s.id ? '✓' : s.id}
               </div>
               <span className={`text-[13px] font-medium ${step === s.id ? 'text-gray-900' : 'text-gray-400'}`}>
@@ -233,6 +236,18 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
                   placeholder="+971 50 000 0000" className={inp(false)}/>
               </FormField>
             </div>
+            <FormField label="Basic Monthly Salary (AED)">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.basicSalary}
+                onChange={e => set('basicSalary', e.target.value)}
+                placeholder="e.g. 5000"
+                className={inp(false)}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">Used to calculate overtime rate (salary ÷ 30 ÷ 8 = AED/hr)</p>
+            </FormField>
             <FormField label="Joining Date">
               <input type="date" value={form.joiningDate} onChange={e => set('joiningDate', e.target.value)}
                 className={inp(false)}/>
@@ -318,7 +333,7 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
 
           {step < 3 ? (
             <button onClick={handleNext}
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-5 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800">
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-5 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover">
               Next
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="9 18 15 12 9 6"/>
@@ -330,7 +345,7 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
             // isPending = true from the moment mutate() is called
             // until onSuccess or onError fires
             <button onClick={handleSubmit} disabled={isPending}
-              className="flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-5 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-70 disabled:cursor-not-allowed">
+              className="flex h-9 items-center gap-2 rounded-lg bg-btn px-5 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover disabled:opacity-70 disabled:cursor-not-allowed">
               {isPending ? (
                 <>
                   {/* Spinner — same pattern as login button */}

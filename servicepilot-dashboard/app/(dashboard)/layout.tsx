@@ -117,11 +117,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-gray-50">
 
       {/* ── SIDEBAR ── */}
-      <aside className="fixed inset-y-0 left-0 z-50 flex w-[232px] flex-col border-r border-white/[0.04]" style={{ background: '#0a0f1e' }}>
+      <aside className="fixed inset-y-0 left-0 z-50 flex w-[232px] flex-col border-r border-white/10" style={{ background: '#0D1F5C' }}>
 
         {/* Logo */}
-        <div className="flex items-center gap-2.5 border-b border-[#1e2d52] px-4 py-5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-700">
+        <div className="flex items-center gap-2.5 border-b border-white/15 px-4 py-5">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/20">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="7" width="20" height="14" rx="2"/>
               <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
@@ -135,7 +135,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {NAV_ITEMS.map((group) => (
             <div key={group.section}>
               {/* Section label */}
-              <div className="px-2 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/25">
+              <div className="px-2 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-200/60">
                 {group.section}
               </div>
 
@@ -153,18 +153,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     className={[
                       'mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors',
                       isActive
-                        ? 'bg-blue-600/12 text-blue-300'  // active state
-                        : 'text-white/50 hover:bg-white/[0.06] hover:text-white/85', // default + hover
+                        ? 'bg-white/15 text-white'
+                        : 'text-blue-100/70 hover:bg-white/10 hover:text-white',
                     ].join(' ')}
-                    style={isActive ? { borderLeft: '2px solid #3b82f6', borderRadius: '0 8px 8px 0', paddingLeft: '9px' } : {}}
+                    style={isActive ? { borderLeft: '2px solid rgba(255,255,255,0.8)', borderRadius: '0 8px 8px 0', paddingLeft: '9px' } : {}}
                   >
-                    <span className={['flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center', isActive ? 'opacity-100' : 'opacity-60'].join(' ')}>
+                    <span className={['flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center', isActive ? 'opacity-100' : 'opacity-70'].join(' ')}>
                       <Icon />
                     </span>
                     <span className="flex-1">{item.label}</span>
                     {/* Badge — pending counts */}
                     {'badge' in item && (item as { badge?: React.ReactNode }).badge && (
-                      <span className="rounded-full bg-red-600 px-1.5 py-px text-[10px] font-bold leading-4 text-white">
+                      <span className="rounded-full bg-red-500 px-1.5 py-px text-[10px] font-bold leading-4 text-white">
                         {(item as { badge?: React.ReactNode }).badge}
                       </span>
                     )}
@@ -176,23 +176,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* User profile at bottom */}
-        <div className="border-t border-[#1e2d52] p-2.5">
+        <div className="border-t border-white/15 p-2.5">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-white/[0.05]"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-white/10"
           >
             {/* Avatar with initials */}
-            <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
+            <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-[11px] font-bold text-white">
               {initials}
             </div>
             <div className="flex-1 text-left">
-              <div className="text-[12.5px] font-medium leading-tight text-white/85 truncate">
+              <div className="text-[12.5px] font-medium leading-tight text-white truncate">
                 {user?.email || 'User'}
               </div>
-              <div className="text-[11px] text-white/35">{user?.role}</div>
+              <div className="text-[11px] text-blue-200/70">{user?.role}</div>
             </div>
             {/* Logout icon */}
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
@@ -205,13 +205,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="ml-[232px] flex flex-1 flex-col">
 
         {/* HEADER */}
-        <header className="sticky top-0 z-40 flex h-[60px] items-center gap-3 border-b border-gray-200 bg-white px-6">
+        <header className="sticky top-0 z-40 flex h-[60px] items-center gap-3 border-b border-[#16307A] px-6" style={{ background: '#0D1F5C' }}>
 
           {/* Page breadcrumb / title area — push user menu to the right */}
           <div className="flex-1"/>
 
           {/* Notification bell — links to /notifications with live unread count */}
-          <Link href="/notifications" className="relative flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700">
+          <Link href="/notifications" className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
@@ -227,17 +227,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setUserMenuOpen(prev => !prev)}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-gray-100"
+              className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/10"
             >
               <div className="text-right">
-                <div className="text-[13px] font-semibold leading-tight text-gray-900">{user?.email}</div>
-                <div className="text-[11px] text-gray-400">{user?.role}</div>
+                <div className="text-[13px] font-semibold leading-tight text-white">{user?.email}</div>
+                <div className="text-[11px] text-white/60">{user?.role}</div>
               </div>
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-[13px] font-bold text-white">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white" style={{ backgroundColor: '#16307A' }}>
                 {initials}
               </div>
               <svg
-                width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"
+                width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2"
                 className={`flex-shrink-0 transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`}
               >
                 <polyline points="6 9 12 15 18 9"/>
@@ -249,7 +249,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="absolute right-0 top-[calc(100%+6px)] w-64 rounded-xl border border-gray-200 bg-white shadow-lg shadow-gray-200/80 z-50">
                 {/* User info header */}
                 <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3.5">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-[14px] font-bold text-white">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white" style={{ backgroundColor: '#16307A' }}>
                     {initials}
                   </div>
                   <div className="min-w-0">

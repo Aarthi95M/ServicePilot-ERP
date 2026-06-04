@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/notifications/page.tsx
 // Notification centre — list all notifications, mark read, mark all read.
 
@@ -139,7 +139,7 @@ export default function NotificationsPage() {
                       <div className={`text-[13px] font-medium ${n.isRead ? 'text-gray-700' : 'text-gray-900'}`}>
                         {n.title}
                         {!n.isRead && (
-                          <span className="ml-2 inline-block h-2 w-2 rounded-full bg-blue-600"/>
+                          <span className="ml-2 inline-block h-2 w-2 rounded-full bg-btn"/>
                         )}
                       </div>
                       <div className="flex-shrink-0 text-[11px] text-gray-400">

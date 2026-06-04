@@ -1063,3 +1063,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_prt_token_hash
 
 CREATE INDEX IF NOT EXISTS idx_prt_user_used
     ON password_reset_tokens (user_id, is_used);
+
+ALTER TABLE employees 
+ADD COLUMN IF NOT EXISTS basic_salary NUMERIC(12,2) NULL;

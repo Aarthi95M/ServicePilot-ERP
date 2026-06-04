@@ -10,7 +10,9 @@ import { router } from 'expo-router';
 // Change this to your .NET API URL
 // In development: your machine's local IP (not localhost — emulator can't reach it)
 // In production: https://api.servicepilot.ae/api
-export const API_BASE_URL = 'http://192.168.1.172:7223/api';
+// Android emulator → 10.0.2.2 maps to the host machine's localhost
+// Physical device on same Wi-Fi → use your LAN IP e.g. http://192.168.1.172:5113/api
+export const API_BASE_URL = 'http://10.0.2.2:5113/api';
 // ↑ UPDATE THIS to your dev machine's IP when testing on a physical device
 
 const apiClient = axios.create({

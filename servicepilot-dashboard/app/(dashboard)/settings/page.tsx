@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/settings/page.tsx
 // Company settings: Profile · Attendance Config · Branches · Departments ·
 // Positions · Leave Types · Job Types · Job Statuses
@@ -128,7 +128,7 @@ export default function SettingsPage() {
       <div className="mb-5 flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${tab === t.key ? 'bg-blue-700 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+            className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${tab === t.key ? 'bg-btn text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
             {t.label}
           </button>
         ))}
@@ -188,7 +188,7 @@ export default function SettingsPage() {
                   const active = cfg.workingDays.split(',').includes(day);
                   return (
                     <button key={day} type="button" onClick={() => toggleDay(day)}
-                      className={`rounded-lg border px-3.5 py-2 text-[13px] font-medium transition-colors ${active ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
+                      className={`rounded-lg border px-3.5 py-2 text-[13px] font-medium transition-colors ${active ? 'border-blue-600 bg-btn text-white' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
                       {day}
                     </button>
                   );
@@ -397,7 +397,7 @@ function CrudPanel({
           <div className="text-[12px] text-gray-500 mt-0.5">{activeItems.length} active</div>
         </div>
         <button onClick={onOpenAdd}
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-[13px] font-semibold text-white hover:bg-blue-800 transition-colors">
+          className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add {label}
         </button>
@@ -456,7 +456,7 @@ function CrudPanel({
               Cancel
             </button>
             <button onClick={onSave} disabled={isSaving}
-              className="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-[13px] font-semibold text-white hover:bg-blue-800 disabled:opacity-70 transition-colors">
+              className="flex items-center gap-2 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70 transition-colors">
               {isSaving && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
               {editItem ? 'Save Changes' : `Create ${label}`}
             </button>
@@ -570,7 +570,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function SaveBtn({ pending, onClick, label }: { pending: boolean; onClick: () => void; label: string }) {
   return (
     <button onClick={onClick} disabled={pending}
-      className="flex h-9 items-center gap-2 rounded-lg bg-blue-700 px-5 text-[13px] font-semibold text-white hover:bg-blue-800 disabled:opacity-70 transition-colors">
+      className="flex h-9 items-center gap-2 rounded-lg bg-btn px-5 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70 transition-colors">
       {pending && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
       {label}
     </button>

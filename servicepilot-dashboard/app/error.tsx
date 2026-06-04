@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/error.tsx
 // Root-level error boundary — catches unhandled React render errors
 // anywhere in the app that aren't caught by a nested error.tsx.
@@ -50,7 +50,7 @@ export default function GlobalError({
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button
             onClick={reset}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-btn px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-btn-hover"
           >
             Try again
           </button>

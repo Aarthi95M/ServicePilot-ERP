@@ -284,6 +284,9 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
             entity.Property(e => e.JoiningDate).HasColumnName("joining_date");
+            entity.Property(e => e.BasicSalary)
+                .HasColumnType("numeric(12,2)")
+                .HasColumnName("basic_salary");
             entity.Property(e => e.PassportExpiryDate).HasColumnName("passport_expiry_date");
             entity.Property(e => e.PhoneNumber)
                 .HasMaxLength(50)

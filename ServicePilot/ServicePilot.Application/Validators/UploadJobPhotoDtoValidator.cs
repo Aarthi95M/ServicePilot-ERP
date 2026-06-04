@@ -1,11 +1,6 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ServicePilot.Application.DTOs.Jobs;
 using ServicePilot.Domain.Constants;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ServicePilot.Application.Validators
 {
@@ -24,9 +19,10 @@ namespace ServicePilot.Application.Validators
                 .Must(t => ValidTypes.Contains(t))
                 .WithMessage($"Photo type must be one of: {string.Join(", ", ValidTypes)}.");
 
-            RuleFor(x => x.PhotoUrl)
-                .NotEmpty().WithMessage("Photo URL is required.")
-                .MaximumLength(1000).WithMessage("Photo URL must not exceed 1000 characters.");
+            RuleFor(x => x.PhotoBase64)
+                .NotEmpty().WithMessage("Photo data is required.")
+                .Must(b => b.Length <= 10_000_000)
+                .WithMessage("Photo data must not exceed ~7.5 MB.");
         }
     }
 }

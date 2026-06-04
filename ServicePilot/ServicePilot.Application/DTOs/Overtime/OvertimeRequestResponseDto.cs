@@ -29,5 +29,11 @@ namespace ServicePilot.Application.DTOs.Overtime
         public DateTime? ApprovedAt { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        /// <summary>Hourly overtime rate derived from employee BasicSalary / 30 / 8. Null if salary not set.</summary>
+        public decimal? OvertimeRatePerHour { get; set; }
+
+        /// <summary>Total amount = OvertimeRatePerHour × HoursRequested. Null if rate not available.</summary>
+        public decimal? TotalAmount { get; set; }
     }
 }

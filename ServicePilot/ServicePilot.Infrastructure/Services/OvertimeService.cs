@@ -72,16 +72,33 @@ namespace ServicePilot.Infrastructure.Services
             await _repository.AddAsync(request);
             await _repository.SaveChangesAsync();
 
-            // Notify HR / Admins that a new overtime request needs review
-            await _notifications.NotifyCompanyAsync(
-                _currentUser.CompanyId,
-                title:   $"New Overtime Request — {employee.FullName}",
-                message: $"{employee.FullName} requested {dto.HoursRequested}h overtime on {dto.RequestDate:dd MMM yyyy}.",
-                type:    "overtime");
+            // Notify HR / Admins — non-fatal: swallow so a notification failure
+            // does not cause the saved request to appear as an error.
+            try
+            {
+                await _notifications.NotifyCompanyAsync(
+                    _currentUser.CompanyId,
+                    title:   $"New Overtime Request — {employee.FullName}",
+                    message: $"{employee.FullName} requested {dto.HoursRequested}h overtime on {dto.RequestDate:dd MMM yyyy}.",
+                    type:    "overtime");
+            }
+            catch { /* swallow */ }
 
-            var created = await _repository.GetByIdAsync(
-                request.Id, _currentUser.CompanyId);
-            return Ok(MapToDto(created!));
+            // Post-save fetch — wrapped defensively so a transient query failure
+            // never hides a successful save.
+            try
+            {
+                var created = await _repository.GetByIdAsync(
+                    request.Id, _currentUser.CompanyId);
+                return Ok(MapToDto(created!));
+            }
+            catch
+            {
+                // The overtime request was persisted; reconstruct the response from
+                // the objects already in memory so the client receives a 200.
+                request.Employee = employee;
+                return Ok(MapToDto(request));
+            }
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -275,6 +292,16 @@ namespace ServicePilot.Infrastructure.Services
 
         private static OvertimeRequestResponseDto MapToDto(OvertimeRequest r)
         {
+            // Hourly rate = BasicSalary / 30 working days / 8 hours per day
+            decimal? ratePerHour = null;
+            decimal? totalAmount = null;
+
+            if (r.Employee?.BasicSalary is decimal salary && salary > 0)
+            {
+                ratePerHour = Math.Round(salary / 30 / 8, 2);
+                totalAmount = Math.Round(ratePerHour.Value * r.HoursRequested, 2);
+            }
+
             return new OvertimeRequestResponseDto
             {
                 Id = r.Id,
@@ -288,7 +315,9 @@ namespace ServicePilot.Infrastructure.Services
                 ApprovedBy = r.ApprovedBy,
                 ApprovedByName = r.ApprovedByNavigation?.FullName,
                 ApprovedAt = r.ApprovedAt,
-                CreatedAt = r.CreatedAt
+                CreatedAt = r.CreatedAt,
+                OvertimeRatePerHour = ratePerHour,
+                TotalAmount = totalAmount
             };
         }
 

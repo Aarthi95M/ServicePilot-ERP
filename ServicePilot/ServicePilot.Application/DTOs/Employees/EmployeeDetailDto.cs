@@ -26,6 +26,9 @@ namespace ServicePilot.Application.DTOs.Employees
         public Guid? PositionId { get; set; }
         public string? PositionName { get; set; }
 
+        /// <summary>Monthly basic salary in AED. Null if not set.</summary>
+        public decimal? BasicSalary { get; set; }
+
         // Dates
         public DateOnly? JoiningDate { get; set; }
         public DateOnly? VisaExpiryDate { get; set; }

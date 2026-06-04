@@ -1,4 +1,4 @@
-// app/not-found.tsx
+﻿// app/not-found.tsx
 // Rendered automatically by Next.js for any URL that doesn't match a route.
 // This is a Server Component — no 'use client' needed.
 import Link from 'next/link';
@@ -30,7 +30,7 @@ export default function NotFound() {
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-btn px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-btn-hover"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/employees/page.tsx — Fixed version
 // Changes:
 //   1. Uses ConfirmDialog instead of browser confirm()
@@ -74,7 +74,7 @@ export default function EmployeesPage() {
           </p>
         </div>
         <Link href="/employees/new"
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800">
+          className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
@@ -273,7 +273,7 @@ export default function EmployeesPage() {
                 }
                 return (
                   <button key={page} onClick={() => setFilters(prev => ({ ...prev, page }))}
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-[13px] transition-colors ${page === currentPage ? 'bg-blue-600 font-semibold text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-[13px] transition-colors ${page === currentPage ? 'bg-btn font-semibold text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                     {page}
                   </button>
                 );

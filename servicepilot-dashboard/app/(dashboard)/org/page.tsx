@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/org/page.tsx
 // Org structure — Branches, Departments, Positions tabs with CRUD
 
@@ -72,7 +72,7 @@ export default function OrgPage() {
           <h1 className="text-[22px] font-bold tracking-tight text-gray-900">Organisation Structure</h1>
           <p className="mt-0.5 text-[13px] text-gray-500">Manage branches, departments, and positions</p>
         </div>
-        <button onClick={openCreate} className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-[13px] font-semibold text-white hover:bg-blue-800 transition-colors">
+        <button onClick={openCreate} className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add {tab === 'branches' ? 'Branch' : tab === 'departments' ? 'Department' : 'Position'}
         </button>
@@ -82,7 +82,7 @@ export default function OrgPage() {
       <div className="mb-5 flex gap-1 rounded-xl border border-gray-200 bg-white p-1.5 w-fit shadow-sm">
         {TABS.map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setShowForm(false); }}
-            className={`rounded-lg px-5 py-2 text-[13px] font-medium transition-colors ${tab === t.id ? 'bg-blue-700 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+            className={`rounded-lg px-5 py-2 text-[13px] font-medium transition-colors ${tab === t.id ? 'bg-btn text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
             {t.label}
           </button>
         ))}
@@ -193,7 +193,7 @@ export default function OrgPage() {
                 )}
                 <div className="flex gap-2 pt-1">
                   <button onClick={closeForm} className="flex-1 rounded-lg border border-gray-200 py-2 text-[13px] text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
-                  <button onClick={handleSubmit} disabled={isPending} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-700 py-2 text-[13px] font-semibold text-white hover:bg-blue-800 disabled:opacity-70 transition-colors">
+                  <button onClick={handleSubmit} disabled={isPending} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-btn py-2 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70 transition-colors">
                     {isPending && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
                     {editItem ? 'Save' : 'Create'}
                   </button>

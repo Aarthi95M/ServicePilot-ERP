@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // ============================================================
 // app/(dashboard)/dashboard/page.tsx  — LIVE API VERSION
 //
@@ -28,6 +28,8 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api/client';
 import { useToast } from '@/components/shared/ToastProvider';
+import { LeafletMap } from '@/components/shared/LeafletMap';
+import type { MapMarker } from '@/components/shared/LeafletMap';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -102,7 +104,7 @@ useEffect(() => {
             </svg>
             Export Report
           </button>
-          <button onClick={() => router.push('/jobs/new')} className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800">
+          <button onClick={() => router.push('/jobs/new')} className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19"/>
               <line x1="5" y1="12" x2="19" y2="12"/>
@@ -256,33 +258,38 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* Map placeholder */}
-              <div className="relative h-[152px] overflow-hidden bg-[#e8f0f7]" style={{
-                backgroundImage: 'linear-gradient(rgba(30,60,120,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(30,60,120,0.06) 1px, transparent 1px)',
-                backgroundSize: '32px 32px',
-              }}>
-                <div className="absolute left-0 right-0 h-px bg-white/80" style={{ top: '35%' }}/>
-                <div className="absolute left-0 right-0 h-px bg-white/80" style={{ top: '65%' }}/>
-                <div className="absolute top-0 bottom-0 w-px bg-white/80" style={{ left: '30%' }}/>
-                <div className="absolute top-0 bottom-0 w-px bg-white/80" style={{ left: '65%' }}/>
-                {/* GPS pins from real API data */}
-                {data.activeEmployees.slice(0, 3).map((emp, i) => {
-                  const positions = [
-                    { top: '28%', left: '28%' },
-                    { top: '50%', left: '58%' },
-                    { top: '20%', left: '62%' },
-                  ];
-                  const colors = ['#0d9488', '#d97706', '#2563eb'];
-                  const initials = (emp.employeeName ?? '').split(' ').map((n: string) => n[0]).join('').slice(0, 2) || '--';
-                  return (
-                    <div key={emp.employeeId} className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-md"
-                      style={{ ...positions[i], background: colors[i] }}>
-                      {initials}
-                    </div>
-                  );
-                })}
-                <div className="absolute bottom-2 right-3 text-[10px] text-gray-400">React Leaflet map · Phase B</div>
-              </div>
+              {/* Live Leaflet map — build markers from activeEmployees with GPS coords */}
+              {(() => {
+                const markers: MapMarker[] = data.activeEmployees
+                  .filter((emp) => emp.latitude && emp.longitude)
+                  .map((emp) => ({
+                    lat:   Number(emp.latitude),
+                    lng:   Number(emp.longitude),
+                    label: emp.employeeName ?? 'Unknown',
+                    popup: `${emp.employeeName} · checked in ${
+                      new Date(emp.checkInTime).toLocaleTimeString('en-US', {
+                        hour: '2-digit', minute: '2-digit',
+                      })
+                    }`,
+                    color: 'green' as const,
+                  }));
+
+                const center: [number, number] = markers.length > 0
+                  ? [
+                      markers.reduce((s, m) => s + m.lat, 0) / markers.length,
+                      markers.reduce((s, m) => s + m.lng, 0) / markers.length,
+                    ]
+                  : [25.2048, 55.2708]; // Dubai fallback
+
+                return (
+                  <LeafletMap
+                    center={center}
+                    zoom={markers.length > 0 ? 12 : 11}
+                    markers={markers}
+                    height="160px"
+                  />
+                );
+              })()}
 
               {/* Active employee list from API */}
               <div className="divide-y divide-gray-50 px-5">
@@ -291,7 +298,7 @@ useEffect(() => {
                   const initials = (emp.employeeName ?? '').split(' ').map((n: string) => n[0]).join('').slice(0, 2) || '--';
                   return (
                     <div key={emp.employeeId} className="flex items-center gap-3 py-3">
-                      <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: colors[i] }}>
+                      <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: colors[i % 3] }}>
                         {initials}
                       </div>
                       <div className="flex-1 min-w-0">

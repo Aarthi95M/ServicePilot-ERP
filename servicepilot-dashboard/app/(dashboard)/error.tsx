@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 // app/(dashboard)/error.tsx
 // Dashboard-scoped error boundary — catches render errors within any
 // (dashboard) page without taking down the entire app.
@@ -44,7 +44,7 @@ export default function DashboardError({
       <div className="flex gap-3">
         <button
           onClick={reset}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-blue-700"
+          className="rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover"
         >
           Try again
         </button>

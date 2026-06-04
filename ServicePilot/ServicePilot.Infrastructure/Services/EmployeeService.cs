@@ -93,6 +93,7 @@ namespace ServicePilot.Infrastructure.Services
                 PassportExpiryDate = dto.PassportExpiryDate,
                 EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate,
                 JoiningDate = dto.JoiningDate,
+                BasicSalary = dto.BasicSalary,
 
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -176,6 +177,7 @@ namespace ServicePilot.Infrastructure.Services
             employee.PassportExpiryDate = dto.PassportExpiryDate;
             employee.EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate;
             employee.JoiningDate = dto.JoiningDate;
+            employee.BasicSalary = dto.BasicSalary;
             employee.IsActive = dto.IsActive;
             employee.UpdatedAt = DateTime.UtcNow;
 
@@ -330,6 +332,7 @@ namespace ServicePilot.Infrastructure.Services
                 PositionId = e.PositionId,
                 PositionName = e.Position?.Name,
 
+                BasicSalary = e.BasicSalary,
                 JoiningDate = e.JoiningDate,
                 VisaExpiryDate = e.VisaExpiryDate,
                 PassportExpiryDate = e.PassportExpiryDate,

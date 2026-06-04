@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ServicePilot.Application.DTOs.Jobs;
+using ServicePilot.Shared.Responses;
 using ServicePilot.Application.Interfaces.Services;
 using ServicePilot.Domain.Constants;
 
@@ -118,13 +119,16 @@ namespace ServicePilot.API.Controllers
 
         /// <summary>
         /// My assigned jobs — mobile app.
-        /// Dispatcher does not have field assignments.
+        /// Returns paged + status-filtered list for the authenticated employee.
+        /// Query params: page (default 1), pageSize (default 20), jobStatusId (optional GUID).
+        /// Dispatcher does not have field assignments but the role is still allowed here
+        /// so admins can test the endpoint.
         /// </summary>
         [HttpGet("my-jobs")]
         [Authorize(Roles = Roles.JobReadAccess)]       // Admin,Supervisor,Dispatcher,Employee
-        public async Task<IActionResult> GetMyJobs()
+        public async Task<IActionResult> GetMyJobs([FromQuery] MyJobsRequest filter)
         {
-            var response = await _service.GetMyJobsAsync();
+            var response = await _service.GetMyJobsAsync(filter);
             return response.Success ? Ok(response) : BadRequest(response);
         }
     }

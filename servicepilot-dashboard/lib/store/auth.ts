@@ -30,8 +30,39 @@
 // ============================================================
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware'; // saves state to localStorage
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AuthUser, UserRole } from '@/lib/types';
+
+// ── Custom storage: uses sessionStorage OR localStorage based on
+//    the sp-remember flag set at login time.
+//    sessionStorage → cleared when the browser tab/window closes
+//    localStorage   → persists across restarts (Remember me = ON)
+const smartStorage = createJSONStorage(() => ({
+  getItem: (name: string) => {
+    if (typeof window === 'undefined') return null;
+    // prefer sessionStorage; fall back to localStorage
+    return (
+      sessionStorage.getItem(name) ??
+      localStorage.getItem(name)
+    );
+  },
+  setItem: (name: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    const remember = localStorage.getItem('sp-remember') === 'true';
+    if (remember) {
+      localStorage.setItem(name, value);
+      sessionStorage.removeItem(name); // avoid stale session copy
+    } else {
+      sessionStorage.setItem(name, value);
+      localStorage.removeItem(name);   // clear any old "remembered" data
+    }
+  },
+  removeItem: (name: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(name);
+    sessionStorage.removeItem(name);
+  },
+}));
 
 // ── State interface ──────────────────────────────────────────
 // Defines the shape of what the store holds.
@@ -48,8 +79,10 @@ interface AuthState {
   // Actions — methods that update the state
   // .NET equivalent: methods on the service
 
-  // Called after successful login with the data from the API response
-  login: (user: AuthUser) => void;
+  // Called after successful login with the data from the API response.
+  // Pass remember=true to persist across browser restarts (localStorage),
+  // or remember=false for session-only (sessionStorage, cleared on close).
+  login: (user: AuthUser, remember?: boolean) => void;
 
   // Called on logout or 401 response
   logout: () => void;
@@ -70,24 +103,32 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       token:null,
       // Login action
-      // Called by the login page after a successful API response
-      login: (user: AuthUser) => {
-        // Save token separately so the Axios interceptor can read it
-        // (interceptors run outside React so can't use the Zustand hook)
-        localStorage.setItem('sp-token', user.token);
+      // Called by the login page after a successful API response.
+      // remember=true  → localStorage  (survives browser restart)
+      // remember=false → sessionStorage (cleared when browser closes)
+      login: (user: AuthUser, remember = false) => {
+        // Write the remember flag BEFORE Zustand's persist fires so
+        // smartStorage above picks the right storage bucket.
+        localStorage.setItem('sp-remember', String(remember));
 
-        // Update the store — this triggers a re-render in all
-        // components that use useAuthStore()
+        // Save token under both keys the Axios interceptor looks for.
+        // Use the correct storage depending on remember preference.
+        const tokenStorage = remember ? localStorage : sessionStorage;
+        tokenStorage.setItem('sp-token', user.token);
+        // Remove from the other storage to avoid stale tokens.
+        if (remember) sessionStorage.removeItem('sp-token');
+        else           localStorage.removeItem('sp-token');
+
         set({ user, token: user.token, isAuthenticated: true });
       },
 
-      // Logout action
+      // Logout action — wipe BOTH storages to be safe
       logout: () => {
-        // Clear localStorage
         localStorage.removeItem('sp-token');
+        localStorage.removeItem('sp-remember');
+        sessionStorage.removeItem('sp-token');
 
-        // Clear the store — triggers re-render everywhere
-        set({ user: null,token:null, isAuthenticated: false });
+        set({ user: null, token: null, isAuthenticated: false });
       },
 
       // Role check helper
@@ -108,9 +149,9 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'sp-auth', // localStorage key
-      // Only persist user and isAuthenticated — not the functions
-      partialize: (state) => ({
+      name: 'sp-auth',            // storage key name
+      storage: smartStorage,      // sessionStorage OR localStorage per remember flag
+      partialize: (state) => ({   // only persist data, not functions
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,

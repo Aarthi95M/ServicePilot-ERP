@@ -324,28 +324,51 @@ namespace ServicePilot.Infrastructure.Services
         }
 
         // ════════════════════════════════════════════════════════════════
-        // GetMyJobsAsync — unchanged from your original
+        // GetMyJobsAsync — returns paged + filterable list of the
+        // current employee's assigned jobs.
+        //
+        // Previously returned IEnumerable (flat array), which broke the
+        // mobile app that expects { items, totalCount, page, pageSize }.
+        // Now delegates to GetPagedAsync with AssignedEmployeeId scoped
+        // to the authenticated user so all filtering/pagination reuse
+        // the existing repository logic.
         // ════════════════════════════════════════════════════════════════
-        public async Task<ApiResponse<IEnumerable<JobResponseDto>>> GetMyJobsAsync()
+        public async Task<ApiResponse<PagedResult<JobResponseDto>>> GetMyJobsAsync(
+            MyJobsRequest filter)
         {
-            var employee = await _context.Users
+            var employeeId = await _context.Users
                 .AsNoTracking()
-                .Include(x => x.Employee)
                 .Where(x =>
                     x.Id == _currentUser.UserId &&
                     x.CompanyId == _currentUser.CompanyId &&
                     x.IsActive)
-                .Select(x => x.Employee)
+                .Select(x => (Guid?)x.EmployeeId)
                 .FirstOrDefaultAsync();
 
-            if (employee == null)
-                return Fail<IEnumerable<JobResponseDto>>(
+            if (employeeId == null)
+                return Fail<PagedResult<JobResponseDto>>(
                     "No employee profile linked to this account.");
 
-            var jobs = await _repository.GetByEmployeeAsync(
-                employee.Id, _currentUser.CompanyId);
+            var pagedFilter = new PagedJobRequest
+            {
+                Page         = filter.Page,
+                PageSize     = filter.PageSize,
+                JobStatusId  = filter.JobStatusId,
+                AssignedEmployeeId = employeeId.Value,
+                SortBy       = "scheduledat",
+                SortDir      = "asc",
+            };
 
-            return Ok(jobs.Select(MapToDto));
+            var result = await _repository.GetPagedAsync(
+                _currentUser.CompanyId, pagedFilter);
+
+            return Ok(new PagedResult<JobResponseDto>
+            {
+                Items      = result.Items.Select(MapToDto).ToList(),
+                TotalCount = result.TotalCount,
+                Page       = result.Page,
+                PageSize   = result.PageSize,
+            });
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -547,12 +570,30 @@ namespace ServicePilot.Infrastructure.Services
                         "You can only upload photos for jobs assigned to you.");
             }
 
+            // Detect MIME type from the caption/filename hint; default to jpeg.
+            var mimeType = "image/jpeg";
+            if (!string.IsNullOrWhiteSpace(dto.Caption))
+            {
+                var ext = Path.GetExtension(dto.Caption).TrimStart('.').ToLowerInvariant();
+                mimeType = ext switch
+                {
+                    "png"  => "image/png",
+                    "gif"  => "image/gif",
+                    "webp" => "image/webp",
+                    _      => "image/jpeg",
+                };
+            }
+
+            // Build a data URI so the mobile <Image> component can render it directly.
+            // In production, upload to Azure Blob Storage and store the resulting URL instead.
+            var dataUri = $"data:{mimeType};base64,{dto.PhotoBase64}";
+
             var photo = new JobPhoto
             {
                 Id = Guid.NewGuid(),
                 JobId = job.Id,
                 PhotoType = dto.PhotoType,
-                PhotoUrl = dto.PhotoUrl,
+                PhotoUrl = dataUri,
                 UploadedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
