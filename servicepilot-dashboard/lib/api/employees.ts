@@ -14,6 +14,8 @@ import type {
   CreateEmployeeDto,
   UpdateEmployeeDto,
   PagedEmployeeRequest,
+  CreateTechnicianDto,
+  TechnicianCreatedDto,
 } from '@/lib/types';
 
 export const employeesApi = {
@@ -57,6 +59,16 @@ export const employeesApi = {
   // DELETE /api/employees/{id} (soft delete — sets isActive = false)
   deactivate: async (id: string): Promise<ApiResponse<boolean>> => {
     const response = await apiClient.delete<ApiResponse<boolean>>(`/employees/${id}`);
+    return response.data;
+  },
+
+  // POST /api/employees/create-technician
+  // Atomically creates Employee record + Technician user account in one call
+  createTechnician: async (dto: CreateTechnicianDto): Promise<ApiResponse<TechnicianCreatedDto>> => {
+    const response = await apiClient.post<ApiResponse<TechnicianCreatedDto>>(
+      '/employees/create-technician',
+      dto
+    );
     return response.data;
   },
 };

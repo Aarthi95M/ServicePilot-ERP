@@ -21,7 +21,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { employeesApi } from '@/lib/api/employees';
-import type { CreateEmployeeDto, UpdateEmployeeDto, PagedEmployeeRequest } from '@/lib/types';
+import type { CreateEmployeeDto, UpdateEmployeeDto, PagedEmployeeRequest, CreateTechnicianDto } from '@/lib/types';
 
 // Paged employee list with filters
 // Usage: const { data, isLoading } = useEmployees({ page: 1, pageSize: 20, search: 'ahmed' })
@@ -101,6 +101,18 @@ export function useDeactivateEmployee() {
 
   return useMutation({
     mutationFn: (id: string) => employeesApi.deactivate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+}
+
+// Create Technician — creates Employee + User in one atomic call
+export function useCreateTechnician() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dto: CreateTechnicianDto) => employeesApi.createTechnician(dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
     },

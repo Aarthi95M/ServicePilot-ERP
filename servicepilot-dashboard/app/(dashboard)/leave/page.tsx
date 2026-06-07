@@ -270,7 +270,8 @@ export default function LeavePage() {
           <div className="mb-4 flex items-center gap-3">
             <select value={summaryYear} onChange={e => setSummaryYear(Number(e.target.value))}
               className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-[13px] text-gray-700 outline-none focus:border-blue-600">
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+              {/* Show 5 past years + current + 3 future years = 9-year range */}
+              {Array.from({ length: 9 }, (_, i) => new Date().getFullYear() - 5 + i).map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>

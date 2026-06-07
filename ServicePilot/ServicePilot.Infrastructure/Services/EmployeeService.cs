@@ -1,10 +1,13 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using ServicePilot.Application.DTOs.Employees;
 using ServicePilot.Application.Interfaces.Repositories;
 using ServicePilot.Application.Interfaces.Services;
+using ServicePilot.Domain.Constants;
 using ServicePilot.Domain.Entities;
+using ServicePilot.Infrastructure.Persistence.Models;
 using ServicePilot.Shared.Responses;
 using System;
 using System.Collections.Generic;
@@ -31,6 +34,10 @@ namespace ServicePilot.Infrastructure.Services
 
         private readonly IAuthService _authorization;
 
+        private readonly AppDbContext _context;
+
+        private readonly IPasswordService _passwordService;
+
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
             ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
@@ -44,7 +51,9 @@ namespace ServicePilot.Infrastructure.Services
             INumberGeneratorService numberGenerator,
             IDistributedCache distributedCache,
             IAuditRepository auditRepository,
-            IAuthService authorization)
+            IAuthService authorization,
+            AppDbContext context,
+            IPasswordService passwordService)
         {
             _repository = repository;
             _currentUser = currentUser;
@@ -53,7 +62,8 @@ namespace ServicePilot.Infrastructure.Services
             _distributedCache = distributedCache;
             _auditRepository = auditRepository;
             _authorization = authorization;
-
+            _context = context;
+            _passwordService = passwordService;
         }
 
         public async Task<ApiResponse<IEnumerable<EmployeeDto>>> GetAllAsync(
@@ -437,6 +447,189 @@ namespace ServicePilot.Infrastructure.Services
                 Success = true,
                 Data = result
             };
+        }
+
+        /// <summary>
+        /// Atomically creates an Employee record + a linked Technician User account
+        /// in a single database transaction. Rolls back completely if either step fails.
+        /// </summary>
+        public async Task<ApiResponse<TechnicianCreatedDto>> CreateTechnicianAsync(
+            CreateTechnicianDto dto)
+        {
+            // Resolve the login email — prefer dedicated LoginEmail, fall back to Email
+            var loginEmail = (dto.LoginEmail?.Trim() ?? dto.Email?.Trim() ?? string.Empty)
+                             .ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(loginEmail))
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = false,
+                    Message = "A login email is required. Provide LoginEmail or Email."
+                };
+
+            if (string.IsNullOrWhiteSpace(dto.Password))
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = false,
+                    Message = "A password is required for the new account."
+                };
+
+            // Only Technician and Supervisor can be created here — these are
+            // the two field roles that need both an Employee profile AND
+            // mobile app access. Other roles (Admin/HRManager/Dispatcher)
+            // don't need an Employee profile and are created via User Management.
+            var requestedRole = (dto.Role ?? "Technician").Trim();
+            if (!string.Equals(requestedRole, Roles.Technician, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(requestedRole, Roles.Supervisor, StringComparison.OrdinalIgnoreCase))
+            {
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = false,
+                    Message = "Role must be either 'Technician' or 'Supervisor'."
+                };
+            }
+
+            // Email must be unique within the company
+            var emailTaken = await _context.Users.AnyAsync(u =>
+                u.CompanyId == _currentUser.CompanyId &&
+                u.Email == loginEmail);
+
+            if (emailTaken)
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = false,
+                    Message = $"A user account with email '{loginEmail}' already exists."
+                };
+
+            // Resolve the requested role (Technician or Supervisor)
+            var techRole = await _context.Roles
+                .FirstOrDefaultAsync(r => r.Name == requestedRole);
+
+            if (techRole == null)
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = false,
+                    Message = $"The '{requestedRole}' role does not exist in the database."
+                };
+
+            // Validate branch if supplied
+            if (dto.BranchId.HasValue)
+            {
+                var branchOk = await _context.Branches.AnyAsync(b =>
+                    b.Id == dto.BranchId &&
+                    b.CompanyId == _currentUser.CompanyId &&
+                    b.IsActive);
+
+                if (!branchOk)
+                    return new ApiResponse<TechnicianCreatedDto>
+                    {
+                        Success = false,
+                        Message = "Branch not found or inactive."
+                    };
+            }
+
+            // Generate employee code BEFORE opening the transaction
+            var employeeCode = await _numberGeneratorService
+                .GenerateEmployeeCodeAsync(_currentUser.CompanyId);
+
+            // ── Atomic create ─────────────────────────────────────────
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // 1. Employee record
+                var employee = new Employee
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = _currentUser.CompanyId,
+                    EmployeeCode = employeeCode,
+                    FullName = dto.FullName.Trim(),
+                    Email = dto.Email?.Trim(),
+                    PhoneNumber = dto.PhoneNumber?.Trim(),
+                    BranchId = dto.BranchId,
+                    DepartmentId = dto.DepartmentId,
+                    PositionId = dto.PositionId,
+                    VisaExpiryDate = dto.VisaExpiryDate,
+                    PassportExpiryDate = dto.PassportExpiryDate,
+                    EmiratesIdExpiryDate = dto.EmiratesIdExpiryDate,
+                    JoiningDate = dto.JoiningDate,
+                    BasicSalary = dto.BasicSalary,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _repository.AddAsync(employee);
+                await _repository.SaveChangesAsync();
+
+                // 2. User account linked to the employee
+                var user = new User
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = _currentUser.CompanyId,
+                    FullName = dto.FullName.Trim(),
+                    Email = loginEmail,
+                    PhoneNumber = dto.PhoneNumber?.Trim(),
+                    RoleId = techRole.Id,
+                    Role = techRole,
+                    BranchId = dto.BranchId,
+                    EmployeeId = employee.Id,
+                    PasswordHash = _passwordService.HashPassword(dto.Password),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _context.Users.AddAsync(user);
+                await _context.SaveChangesAsync();
+
+                await tx.CommitAsync();
+
+                // Invalidate employee dropdown cache
+                await _distributedCache.RemoveAsync(
+                    $"employees_dropdown_{_currentUser.CompanyId}");
+
+                // Audit log (best-effort — don't fail the whole call if this errors)
+                try
+                {
+                    await _auditRepository.AddAsync(new AuditLog
+                    {
+                        Id = Guid.NewGuid(),
+                        TableName = "Employees",
+                        RecordId = employee.Id,
+                        Action = $"CREATE_{techRole.Name.ToUpperInvariant()}",
+                        OldValues = null,
+                        NewValues = JsonSerializer.Serialize(
+                            new { employee.Id, employee.EmployeeCode, UserId = user.Id },
+                            _jsonOptions),
+                        UserId = _currentUser.UserId,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                    await _auditRepository.SaveChangesAsync();
+                }
+                catch { /* non-critical */ }
+
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = true,
+                    Message = $"{techRole.Name} created successfully.",
+                    Data = new TechnicianCreatedDto
+                    {
+                        EmployeeId   = employee.Id,
+                        EmployeeCode = employee.EmployeeCode,
+                        FullName     = employee.FullName,
+                        UserId       = user.Id,
+                        LoginEmail   = user.Email,
+                        Role         = techRole.Name
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return new ApiResponse<TechnicianCreatedDto>
+                {
+                    Success = false,
+                    Message = $"Failed to create {requestedRole.ToLowerInvariant()}: {ex.Message}"
+                };
+            }
         }
 
     }

@@ -18,9 +18,9 @@ namespace ServicePilot.Application.Validators
 
             RuleFor(x => x.StartDate)
                 .NotEmpty()
-                .WithMessage("Start date is required.")
-                .GreaterThanOrEqualTo(DateOnly.FromDateTime(DateTime.UtcNow))
-                .WithMessage("Start date cannot be in the past.");
+                .WithMessage("Start date is required.");
+            // Past-date restriction is enforced in the service layer so that
+            // Admin / Supervisor can submit backdated leave on behalf of employees.
 
             RuleFor(x => x.EndDate)
                 .NotEmpty()

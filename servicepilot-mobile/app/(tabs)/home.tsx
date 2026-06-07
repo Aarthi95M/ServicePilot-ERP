@@ -28,7 +28,8 @@ export default function HomeScreen() {
   };
 
   const greeting = (() => {
-    const h = new Date().getHours();
+    // Use UAE timezone for greeting
+    const h = parseInt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Dubai' }), 10);
     if (h < 12) return 'Good morning';
     if (h < 18) return 'Good afternoon';
     return 'Good evening';
@@ -91,18 +92,28 @@ export default function HomeScreen() {
           {myJobs.length === 0 ? (
             <Card><Text style={styles.emptyText}>No jobs assigned. Enjoy the day! ☀️</Text></Card>
           ) : (
-            myJobs.slice(0, 3).map((job: any) => (
-              <TouchableOpacity key={job.id} activeOpacity={0.85} onPress={() => router.push(`/jobs/${job.id}`)}>
-                <Card style={styles.jobCard}>
-                  <View style={styles.jobHeader}>
-                    <Text style={styles.jobNumber}>{job.jobNumber}</Text>
-                    <Badge label={job.status} variant={statusVariant(job.status)} />
-                  </View>
-                  <Text style={styles.customer}>{job.customerName}</Text>
-                  <Text style={styles.address} numberOfLines={1}>📍 {job.address}</Text>
-                </Card>
-              </TouchableOpacity>
-            ))
+            myJobs.slice(0, 3).map((job: any) => {
+              const statusLabel = job.jobStatusName ?? job.status ?? '';
+              return (
+                <TouchableOpacity key={job.id} activeOpacity={0.85} onPress={() => router.push(`/jobs/${job.id}`)}>
+                  <Card style={styles.jobCard}>
+                    <View style={styles.jobHeader}>
+                      <Text style={styles.jobNumber}>{job.jobNumber}</Text>
+                      {!!statusLabel && (
+                        <Badge label={statusLabel} variant={statusVariant(statusLabel)} />
+                      )}
+                    </View>
+                    <Text style={styles.customer}>{job.customerName}</Text>
+                    {!!job.address && (
+                      <Text style={styles.address} numberOfLines={1}>📍 {job.address}</Text>
+                    )}
+                    {!!job.scheduledAt && (
+                      <Text style={styles.dateText}>🕐 {new Date(job.scheduledAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</Text>
+                    )}
+                  </Card>
+                </TouchableOpacity>
+              );
+            })
           )}
 
           {/* Quick actions */}
@@ -127,7 +138,7 @@ export default function HomeScreen() {
 }
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' });
 }
 
 const styles = StyleSheet.create({
@@ -145,20 +156,21 @@ const styles = StyleSheet.create({
   attendanceRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   attendanceInfo:  { gap: 4 },
   timeText:        { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 4 },
-  checkBtn:        { backgroundColor: Colors.primary, paddingVertical: 8, paddingHorizontal: 14, borderRadius: Radius.md },
+  checkBtn:        { backgroundColor: Colors.primaryBtn, paddingVertical: 8, paddingHorizontal: 14, borderRadius: Radius.md },
   checkBtnText:    { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#fff' },
 
   sectionHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle:    { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.text },
-  seeAll:          { fontSize: FontSize.sm, color: Colors.primary },
+  seeAll:          { fontSize: FontSize.sm, color: Colors.accent },
 
   emptyText:       { textAlign: 'center', color: Colors.textSecondary, fontSize: FontSize.sm, padding: 8 },
 
   jobCard:         { marginBottom: Spacing.xs },
-  jobHeader:       { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  jobNumber:       { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary, fontFamily: 'monospace' },
+  jobHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  jobNumber:       { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.accent, fontFamily: 'monospace' },
   customer:        { fontSize: FontSize.base, fontWeight: FontWeight.medium, color: Colors.text },
   address:         { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  dateText:        { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 4 },
 
   quickGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   quickCard:       { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', gap: 6, flex: 1, minWidth: '45%', borderWidth: 1, borderColor: Colors.border },

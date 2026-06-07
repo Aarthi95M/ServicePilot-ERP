@@ -131,6 +131,7 @@ export interface EmployeeDetailDto {
   positionId: string | null;
   positionName: string | null;
   joiningDate: string | null;       // "2026-01-15" (DateOnly from backend)
+  basicSalary: number | null;
   visaExpiryDate: string | null;
   passportExpiryDate: string | null;
   emiratesIdExpiryDate: string | null;
@@ -159,6 +160,32 @@ export interface CreateEmployeeDto {
   passportExpiryDate?: string;
   emiratesIdExpiryDate?: string;
   joiningDate?: string;
+}
+
+/** POST /api/employees/create-technician — used for both Technician & Supervisor (the two field roles that need an Employee profile + mobile login) */
+export interface CreateTechnicianDto {
+  /** Either 'Technician' or 'Supervisor' — determines the mobile login role. */
+  role: 'Technician' | 'Supervisor';
+  fullName: string;
+  email?: string;
+  phoneNumber?: string;
+  branchId?: string;
+  departmentId?: string;
+  positionId?: string;
+  joiningDate?: string;
+  basicSalary?: number;
+  loginEmail?: string;
+  password: string;
+}
+
+/** Response from POST /api/employees/create-technician */
+export interface TechnicianCreatedDto {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  userId: string;
+  loginEmail: string;
+  role: string;
 }
 
 export interface UpdateEmployeeDto extends CreateEmployeeDto {

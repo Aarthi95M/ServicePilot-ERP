@@ -20,7 +20,7 @@
 // Layouts nest — root layout → dashboard layout → page
 // ============================================================
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -29,41 +29,97 @@ import apiClient from '@/lib/api/client';
 import { SessionGuard } from '@/components/shared/SessionGuard';
 
 // ── Navigation items ─────────────────────────────────────────
-// Defined here so the Sidebar component can map over them.
-// roles: which roles can see this nav item
+// Each item carries a `roles` array — only roles listed can see it.
+// An empty `roles` array means "all authenticated roles".
+//
+// Role matrix:
+//  Admin        — full access to everything
+//  HRManager    — Employees, Attendance, Leave, Overtime, Reports (NO Jobs/Tracking/Users)
+//  Supervisor   — Employees, Jobs, Attendance, Leave, Overtime, Live Tracking
+//  Dispatcher   — Jobs only (NO attendance, HR, tracking)
+//  Technician   — mobile-only; if they land on web they see Dashboard only
+//
 // .NET equivalent: checking User.IsInRole() before rendering <li>
 
-const NAV_ITEMS = [
+type NavItem = {
+  label: string;
+  href: string;
+  icon: () => React.ReactElement;
+  roles: string[];  // empty = all roles
+};
+
+type NavGroup = {
+  section: string;
+  items: NavItem[];
+};
+
+const NAV_ITEMS: NavGroup[] = [
   {
     section: 'Main',
     items: [
-      { label: 'Dashboard',    href: '/dashboard',    icon: IconGrid },
-      { label: 'Employees',    href: '/employees',    icon: IconUsers },
-      { label: 'Attendance',   href: '/attendance',   icon: IconClock },
-      { label: 'Jobs',         href: '/jobs',         icon: IconBriefcase },
+      {
+        label: 'Dashboard', href: '/dashboard', icon: IconGrid,
+        roles: [], // everyone
+      },
+      {
+        label: 'Employees', href: '/employees', icon: IconUsers,
+        roles: ['Admin', 'HRManager', 'Supervisor'],
+      },
+      {
+        label: 'Attendance', href: '/attendance', icon: IconClock,
+        roles: ['Admin', 'HRManager', 'Supervisor'],
+      },
+      {
+        label: 'Jobs', href: '/jobs', icon: IconBriefcase,
+        roles: ['Admin', 'Supervisor', 'Dispatcher'],  // HRManager excluded
+      },
     ],
   },
   {
     section: 'HR',
     items: [
-      { label: 'Leave Requests', href: '/leave',    icon: IconFile  },
-      { label: 'Overtime',       href: '/overtime', icon: IconTrend },
+      {
+        label: 'Leave Requests', href: '/leave', icon: IconFile,
+        roles: ['Admin', 'HRManager', 'Supervisor'],
+      },
+      {
+        label: 'Overtime', href: '/overtime', icon: IconTrend,
+        roles: ['Admin', 'HRManager', 'Supervisor'],
+      },
     ],
   },
   {
     section: 'Operations',
     items: [
-      { label: 'Live Tracking', href: '/tracking', icon: IconMapPin },
-      { label: 'Reports',       href: '/reports',  icon: IconChart  },
+      {
+        label: 'Live Tracking', href: '/tracking', icon: IconMapPin,
+        roles: ['Admin', 'Supervisor'],  // Dispatcher & HR don't need live tracking
+      },
+      {
+        label: 'Reports', href: '/reports', icon: IconChart,
+        roles: ['Admin', 'HRManager'],
+      },
     ],
   },
   {
     section: 'Admin',
     items: [
-      { label: 'Notifications', href: '/notifications', icon: IconBell },
-      { label: 'Users',         href: '/users',         icon: IconUserCog       },
-      { label: 'Settings',      href: '/settings',      icon: IconSettings      },
-      { label: 'SuperAdmin',    href: '/admin',         icon: IconShield        },
+      {
+        label: 'Notifications', href: '/notifications', icon: IconBell,
+        roles: [], // everyone
+      },
+      {
+        label: 'Users', href: '/users', icon: IconUserCog,
+        roles: ['Admin'],
+      },
+      {
+        label: 'Settings', href: '/settings', icon: IconSettings,
+        roles: ['Admin'],
+      },
+      {
+        label: 'SuperAdmin', href: '/admin', icon: IconShield,
+        roles: ['Admin'],
+      },
     ],
   },
 ];
@@ -132,47 +188,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-3">
-          {NAV_ITEMS.map((group) => (
-            <div key={group.section}>
-              {/* Section label */}
-              <div className="px-2 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-200/60">
-                {group.section}
-              </div>
+          {NAV_ITEMS.map((group) => {
+            // Filter items the current user's role is allowed to see.
+            // roles: [] means visible to everyone (no restriction).
+            const visibleItems = group.items.filter(
+              item => item.roles.length === 0 || (user?.role && item.roles.includes(user.role))
+            );
 
-              {group.items.map((item) => {
-                // isActive: true if current URL matches this nav item's href
-                // pathname === item.href handles exact match
-                // pathname.startsWith handles nested routes like /employees/123
-                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                const Icon = item.icon;
+            // Don't render an empty section header
+            if (visibleItems.length === 0) return null;
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={[
-                      'mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors',
-                      isActive
-                        ? 'bg-white/15 text-white'
-                        : 'text-blue-100/70 hover:bg-white/10 hover:text-white',
-                    ].join(' ')}
-                    style={isActive ? { borderLeft: '2px solid rgba(255,255,255,0.8)', borderRadius: '0 8px 8px 0', paddingLeft: '9px' } : {}}
-                  >
-                    <span className={['flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center', isActive ? 'opacity-100' : 'opacity-70'].join(' ')}>
-                      <Icon />
-                    </span>
-                    <span className="flex-1">{item.label}</span>
-                    {/* Badge — pending counts */}
-                    {'badge' in item && (item as { badge?: React.ReactNode }).badge && (
-                      <span className="rounded-full bg-red-500 px-1.5 py-px text-[10px] font-bold leading-4 text-white">
-                        {(item as { badge?: React.ReactNode }).badge}
+            return (
+              <div key={group.section}>
+                {/* Section label */}
+                <div className="px-2 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-200/60">
+                  {group.section}
+                </div>
+
+                {visibleItems.map((item) => {
+                  // isActive: true if current URL matches this nav item's href
+                  // pathname === item.href handles exact match
+                  // pathname.startsWith handles nested routes like /employees/123
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={[
+                        'mb-0.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors',
+                        isActive
+                          ? 'bg-white/15 text-white'
+                          : 'text-blue-100/70 hover:bg-white/10 hover:text-white',
+                      ].join(' ')}
+                      style={isActive ? { borderLeft: '2px solid rgba(255,255,255,0.8)', borderRadius: '0 8px 8px 0', paddingLeft: '9px' } : {}}
+                    >
+                      <span className={['flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center', isActive ? 'opacity-100' : 'opacity-70'].join(' ')}>
+                        <Icon />
                       </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+                      <span className="flex-1">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
 
         {/* User profile at bottom */}

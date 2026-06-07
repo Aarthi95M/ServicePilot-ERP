@@ -129,6 +129,20 @@ namespace ServicePilot.API.Controllers
         }
 
         /// <summary>
+        /// Admin / Supervisor manually creates an attendance record for an employee
+        /// who forgot to check in. Supervisor access scoped to their branch.
+        /// POST /api/attendance/manual
+        /// </summary>
+        [HttpPost("manual")]
+        [Authorize(Roles = Roles.AttendanceReadAccess)] // Admin, HRManager, Supervisor
+        public async Task<IActionResult> CreateManual(
+            [FromBody] CreateManualAttendanceDto dto)
+        {
+            var response = await _service.CreateManualAsync(dto);
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        /// <summary>
         /// Monthly summary report.
         /// HR Manager primary user. Supervisor sees their branch only.
         /// </summary>

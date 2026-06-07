@@ -2,6 +2,7 @@
 
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { notificationsApi } from '@/lib/api/notifications';
 import { Colors, FontSize } from '@/constants/theme';
@@ -28,14 +29,20 @@ export default function TabLayout() {
     staleTime:       55_000,
   });
 
+  // Bottom gesture-nav bars / home indicators overlay the tab bar on many
+  // Android & iOS devices. Pad the tab bar by the device's bottom safe-area
+  // inset so the icons/labels are never hidden behind system UI.
+  const insets = useSafeAreaInsets();
+  const tabBarStyle = [styles.tabBar, { height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom }];
+
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle:           styles.tabBar,
-        tabBarActiveTintColor:   Colors.primary,
+        tabBarStyle:           tabBarStyle,
+        tabBarActiveTintColor:   Colors.accent,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarLabelStyle:      styles.tabLabel,
-        headerStyle:           { backgroundColor: Colors.secondary },
+        headerStyle:           { backgroundColor: Colors.primary },
         headerTitleStyle:      { color: '#fff', fontSize: FontSize.lg, fontWeight: '600' },
         headerTintColor:       '#fff',
       }}
@@ -81,7 +88,7 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar:       { backgroundColor: Colors.surface, borderTopColor: Colors.border, height: 60, paddingBottom: 8 },
+  tabBar:       { backgroundColor: Colors.surface, borderTopColor: Colors.border, borderTopWidth: 1 },
   tabLabel:     { fontSize: FontSize.xs, fontWeight: '500' },
   iconWrap:     { position: 'relative', alignItems: 'center', justifyContent: 'center', width: 32, height: 28 },
   emoji:        { fontSize: 22, opacity: 0.5 },

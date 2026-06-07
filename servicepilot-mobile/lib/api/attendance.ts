@@ -1,9 +1,22 @@
 import apiClient from './client';
 
 export interface CheckInPayload {
-  latitude:  number;
-  longitude: number;
-  notes?:    string;
+  latitude:             number;
+  longitude:            number;
+  accuracy?:            number;
+  notes?:               string;
+  // Offline sync fields — set by syncQueue when replaying queued actions
+  isOfflineSync?:       boolean;
+  checkInTimeOverride?: string;   // ISO datetime — real event time
+}
+
+export interface CheckOutPayload {
+  latitude:              number;
+  longitude:             number;
+  accuracy?:             number;
+  notes?:                string;
+  isOfflineSync?:        boolean;
+  checkOutTimeOverride?: string;   // ISO datetime — real event time
 }
 
 export interface GpsLogPayload {
@@ -20,7 +33,7 @@ export const attendanceApi = {
   checkIn: (payload: CheckInPayload) =>
     apiClient.post('/attendance/checkin', payload).then(r => r.data),
 
-  checkOut: (payload: CheckInPayload) =>
+  checkOut: (payload: CheckOutPayload) =>
     apiClient.post('/attendance/checkout', payload).then(r => r.data),
 
   logGps: (payload: GpsLogPayload) =>
@@ -28,5 +41,5 @@ export const attendanceApi = {
 
   // History list (paged)
   getHistory: (page = 1, pageSize = 20) =>
-    apiClient.get('/attendance', { params: { page, pageSize } }).then(r => r.data.data),
+    apiClient.get('/attendance/my-history', { params: { page, pageSize } }).then(r => r.data.data),
 };

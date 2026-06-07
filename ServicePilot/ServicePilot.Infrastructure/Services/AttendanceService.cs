@@ -344,6 +344,57 @@ namespace ServicePilot.Infrastructure.Services
             return Ok(MapToDto(log, log.Employee));
         }
 
+        // ════════════════════════════════════════════════════════════════
+        // MANUAL CREATE — supervisor/admin creates record for forgotten check-in
+        // ════════════════════════════════════════════════════════════════
+
+        public async Task<ApiResponse<AttendanceResponseDto>> CreateManualAsync(
+            CreateManualAttendanceDto dto)
+        {
+            var employee = await _context.Employees
+                .AsNoTracking()
+                .Include(e => e.Branch)
+                .FirstOrDefaultAsync(e =>
+                    e.Id == dto.EmployeeId &&
+                    e.CompanyId == _currentUser.CompanyId &&
+                    e.IsActive);
+
+            if (employee == null)
+                return Fail<AttendanceResponseDto>("Employee not found.");
+
+            if (_authorization.IsSupervisor() &&
+                employee.BranchId != _currentUser.BranchId)
+                return Fail<AttendanceResponseDto>(
+                    "You can only create records for employees in your branch.");
+
+            if (dto.CheckInTime > DateTime.UtcNow.AddMinutes(5))
+                return Fail<AttendanceResponseDto>(
+                    "Check-in time cannot be in the future.");
+
+            if (dto.CheckOutTime.HasValue && dto.CheckOutTime.Value <= dto.CheckInTime)
+                return Fail<AttendanceResponseDto>(
+                    "Check-out time must be after check-in time.");
+
+            var log = new AttendanceLog
+            {
+                Id            = Guid.NewGuid(),
+                CompanyId     = _currentUser.CompanyId,
+                EmployeeId    = dto.EmployeeId,
+                CheckInTime   = dto.CheckInTime,
+                CheckOutTime  = dto.CheckOutTime,
+                CheckInLat    = 0,
+                CheckInLng    = 0,
+                Status        = DetermineStatus(dto.CheckInTime),
+                IsOfflineSync = true,   // flag as manual/admin entry for audit
+                CreatedAt     = DateTime.UtcNow
+            };
+
+            await _repository.AddAsync(log);
+            await _repository.SaveChangesAsync();
+
+            return Ok(MapToDto(log, employee));
+        }
+
         public async Task<ApiResponse<bool>> LogGpsAsync(GpsLogRequestDto dto)
         {
             var employee = await GetEmployeeForCurrentUserAsync();

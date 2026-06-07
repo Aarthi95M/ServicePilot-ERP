@@ -30,5 +30,12 @@ namespace ServicePilot.Application.Interfaces.Services
         /// </summary>
         Task<ApiResponse<AttendanceResponseDto>> AdjustAttendanceAsync(
             Guid recordId, AdjustAttendanceRequestDto dto);
+
+        /// <summary>
+        /// Admin / Supervisor creates a manual attendance record for an employee
+        /// who forgot to check in. Supervisor access scoped to their branch.
+        /// </summary>
+        Task<ApiResponse<AttendanceResponseDto>> CreateManualAsync(
+            CreateManualAttendanceDto dto);
     }
 }

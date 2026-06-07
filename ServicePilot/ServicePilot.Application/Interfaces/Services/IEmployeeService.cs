@@ -32,5 +32,12 @@ namespace ServicePilot.Application.Interfaces.Services
         /// Used by the mobile app profile screen.
         /// </summary>
         Task<ApiResponse<EmployeeDetailDto>> GetMyProfileAsync();
+
+        /// <summary>
+        /// Admin / HRManager shortcut that atomically creates both an Employee
+        /// record and a linked Technician user account in a single transaction.
+        /// Prevents the two-step "create employee then create user" workflow.
+        /// </summary>
+        Task<ApiResponse<TechnicianCreatedDto>> CreateTechnicianAsync(CreateTechnicianDto dto);
     }
 }

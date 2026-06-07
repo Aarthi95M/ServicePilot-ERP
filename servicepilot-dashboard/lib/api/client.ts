@@ -38,8 +38,7 @@ const apiClient = axios.create({
   // In .NET: Configuration["ApiSettings:BaseUrl"]
   // The NEXT_PUBLIC_ prefix makes it available in the browser.
   // Without NEXT_PUBLIC_, the variable only exists on the server.
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://localhost:5113/api',
-  //'https://localhost:7001/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5113/api',
 
   // Timeout after 15 seconds — same as HttpClient.Timeout
   timeout: 15000,

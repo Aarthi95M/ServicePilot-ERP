@@ -2,7 +2,7 @@
 // app/(dashboard)/employees/new/page.tsx
 // Fixed: loading spinners on buttons + API error display + phone field name
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEmployee, useCreateEmployee, useUpdateEmployee } from '@/lib/hooks/useEmployees';
 import { useLookups } from '@/lib/hooks/useLookups';
@@ -47,7 +47,12 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
   // API-level error message — shown when backend returns 400 with validation errors
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const { data: existingEmployee } = useEmployee(id);
+  // Guard against rapid double-clicks submitting twice.
+  // React's state update is async — disabled={isPending} alone doesn't prevent
+  // a second click fired before the first re-render. The ref fires synchronously.
+  const submittingRef = useRef(false);
+
+  const { data: existingEmployee, isLoading: empLoading, error: empError } = useEmployee(id);
   const { data: lookups } = useLookups();
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
@@ -100,21 +105,32 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
   // Backend returns: { errors: { Phone: ["Phone number is required."] } }
   // We extract all messages and show them as a single string.
   const parseApiError = (error: any): string => {
-    // ASP.NET validation error format
+    const status = error?.response?.status;
+    if (status === 403) return "You don't have permission to perform this action.";
+    if (status === 401) return 'Your session has expired. Please sign in again.';
+    // Backend ApiResponse body (from Axios error.response.data)
+    const body = error?.response?.data;
+    if (body?.errors && typeof body.errors === 'object') {
+      const messages = Object.values(body.errors).flat().join(' ');
+      return messages || 'Validation failed.';
+    }
+    if (body?.message) return body.message;
+    // Direct error object format
     if (error?.errors) {
-      const messages = Object.values(error.errors)
-        .flat()
-        .join(' ');
+      const messages = Object.values(error.errors).flat().join(' ');
       return messages || 'Validation failed. Please check your input.';
     }
-    // Our custom ApiResponse format
-    if (error?.message) return error.message;
-    // Generic fallback
+    if (error?.message && !error.message.includes('status code')) return error.message;
     return 'An error occurred. Please try again.';
   };
 
   const handleSubmit = async () => {
     if (!validateStep()) return;
+
+    // Prevent duplicate submissions on rapid double-click
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     setApiError(null);
 
     // Build the DTO — send undefined for empty strings so backend
@@ -139,22 +155,49 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
         { id, dto },
         {
           onSuccess: (res) => {
+            submittingRef.current = false;
             if (res.success) router.push(`/employees/${id}`);
             else setApiError(res.message || 'Update failed.');
           },
-          onError: (err: any) => setApiError(parseApiError(err)),
+          onError: (err: any) => {
+            submittingRef.current = false;
+            setApiError(parseApiError(err));
+          },
         }
       );
     } else {
       createEmployee.mutate(dto, {
         onSuccess: (res) => {
+          submittingRef.current = false;
           if (res.success) router.push(`/employees/${res.data?.id}`);
           else setApiError(res.message || 'Create failed.');
         },
-        onError: (err: any) => setApiError(parseApiError(err)),
+        onError: (err: any) => {
+          submittingRef.current = false;
+          setApiError(parseApiError(err));
+        },
       });
     }
   };
+
+  // When editing, show error if employee failed to load (e.g. not found / no permission)
+  if (isEdit && id && !empLoading && empError) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <button onClick={() => router.push('/employees')}
+          className="mb-5 flex items-center gap-2 text-[13px] text-gray-500 hover:text-gray-700 transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Back to Employees
+        </button>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-5 text-[13px] text-red-700">
+          <div className="font-semibold mb-1">Employee not found</div>
+          <div>This employee record could not be loaded. It may have been deleted, or you may not have permission to edit it.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl">

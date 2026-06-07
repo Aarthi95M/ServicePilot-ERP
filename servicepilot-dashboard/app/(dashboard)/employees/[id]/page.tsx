@@ -6,15 +6,22 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { useEmployee } from '@/lib/hooks/useEmployees';
+import { useEmployee, useDeactivateEmployee } from '@/lib/hooks/useEmployees';
+import { useAuthStore } from '@/lib/store/auth';
 import apiClient from '@/lib/api/client';
 import type { DocumentStatus } from '@/lib/types';
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuthStore();
   const [tab, setTab] = useState<'overview' | 'attendance' | 'leave'>('overview');
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const { data: employee, isLoading, error } = useEmployee(id);
+  const deactivate = useDeactivateEmployee();
+
+  // Only Admin and HRManager can deactivate employees
+  const canDeactivate = user?.role === 'Admin' || user?.role === 'HRManager';
 
   // ── ALL hooks must be declared BEFORE any conditional returns ──
   // Rule of Hooks: never place useQuery/useState/etc. after an early return.
@@ -57,6 +64,15 @@ export default function EmployeeDetailPage() {
   const colors = ['#0d9488','#2563eb','#7c3aed','#d97706','#dc2626'];
   const color = colors[(employee.fullName?.length ?? 0) % colors.length];
 
+  const handleDeactivate = () => {
+    deactivate.mutate(id, {
+      onSuccess: () => {
+        setShowDeactivateConfirm(false);
+        router.push('/employees');
+      },
+    });
+  };
+
   return (
     <div>
       {/* Back + actions */}
@@ -70,8 +86,55 @@ export default function EmployeeDetailPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit
           </Link>
+          {/* Deactivate button — only visible to Admin and HRManager */}
+          {canDeactivate && employee?.isActive && (
+            <button
+              onClick={() => setShowDeactivateConfirm(true)}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 text-[13px] font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+              </svg>
+              Deactivate
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Deactivate confirmation dialog */}
+      {showDeactivateConfirm && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-1 text-[16px] font-bold text-gray-900">Deactivate Employee?</div>
+            <p className="text-[13px] text-gray-500">
+              <span className="font-medium text-gray-800">{employee?.fullName}</span> will be marked
+              inactive and will no longer be able to check in or access the mobile app. This can be
+              reversed by editing the employee and setting Status to Active.
+            </p>
+            {deactivate.error && (
+              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-600">
+                Failed to deactivate. Please try again.
+              </div>
+            )}
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowDeactivateConfirm(false)}
+                disabled={deactivate.isPending}
+                className="flex-1 rounded-lg border border-gray-200 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeactivate}
+                disabled={deactivate.isPending}
+                className="flex-1 rounded-lg bg-red-600 py-2 text-[13px] font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deactivate.isPending ? 'Deactivating…' : 'Yes, Deactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-4">
 

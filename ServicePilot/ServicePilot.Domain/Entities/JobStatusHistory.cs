@@ -15,6 +15,13 @@ public partial class JobStatusHistory
 
     public Guid? ChangedBy { get; set; }
 
+    /// <summary>
+    /// Optional comment/note entered by the user when changing the job's status
+    /// (e.g. "Customer not available, rescheduled for tomorrow"). Surfaced in
+    /// both the web and mobile job-detail status timeline.
+    /// </summary>
+    public string? Notes { get; set; }
+
     public DateTime ChangedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }

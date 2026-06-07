@@ -16,7 +16,9 @@ function useJobs(params: Record<string, any>) {
       return res.data.data;
     },
     staleTime: 30 * 1000,
-    placeholderData: (prev: any) => prev,
+    // Only use previous data as placeholder if it has items — prevents showing
+    // stale data from a completely different filter as if it were the current results
+    placeholderData: (prev: any) => (prev?.items?.length ? prev : undefined),
   });
 }
 
@@ -45,18 +47,16 @@ export default function JobsPage() {
     page: 1,
   }));
 
-  const { data, isLoading } = useJobs(params);
+  const { data, isLoading, error } = useJobs(params);
   const updateStatus = useUpdateJobStatus();
 
   // Group jobs by status for kanban
   const jobsByStatus: Record<string, { color: string; jobs: any[] }> = {};
-  if (data?.items) {
-    data.items.forEach((job: any) => {
-      const key = job.jobStatusName || 'Unassigned';
-      if (!jobsByStatus[key]) jobsByStatus[key] = { color: job.statusColor || '#94a3b8', jobs: [] };
-      jobsByStatus[key].jobs.push(job);
-    });
-  }
+  (data?.items ?? []).forEach((job: any) => {
+    const key = job.jobStatusName || 'Unassigned';
+    if (!jobsByStatus[key]) jobsByStatus[key] = { color: job.statusColor || '#94a3b8', jobs: [] };
+    jobsByStatus[key].jobs.push(job);
+  });
 
   return (
     <div>
@@ -155,9 +155,21 @@ export default function JobsPage() {
                 </div>
               ))}
 
-              {Object.keys(jobsByStatus).length === 0 && !isLoading && (
+              {Object.keys(jobsByStatus).length === 0 && !isLoading && !error && (
                 <div className="flex w-full items-center justify-center py-16 text-[13px] text-gray-400">
                   No jobs found. Create your first job to get started.
+                </div>
+              )}
+              {error && !isLoading && (
+                <div className="flex w-full items-center justify-center py-16">
+                  <div className="text-center">
+                    <div className="mb-1 text-[13px] font-medium text-red-600">Could not load jobs</div>
+                    <div className="text-[12px] text-gray-400">
+                      {(error as any)?.response?.status === 403
+                        ? "You don't have permission to view jobs."
+                        : 'Please check your connection and try again.'}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

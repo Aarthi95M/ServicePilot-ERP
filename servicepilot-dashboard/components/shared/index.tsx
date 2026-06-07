@@ -105,14 +105,31 @@ export function SuccessToast({ visible, message = 'Saved successfully' }: Succes
 
 // ── parseApiError ─────────────────────────────────────────────
 // Extracts a readable error message from any API error format.
-// Handles both ASP.NET validation errors and our ApiResponse format.
+// Handles Axios HTTP errors (403, 401, 422…) and our ApiResponse format.
 // Usage:
 //   onError: (err) => setApiError(parseApiError(err))
 
 export function parseApiError(error: any): string {
+  // ── Axios HTTP error — check status code first ────────────────
+  const status = error?.response?.status;
+  if (status === 403) {
+    // Try to surface the backend message if it's more specific
+    const serverMsg = error?.response?.data?.message;
+    return serverMsg && typeof serverMsg === 'string'
+      ? `Permission denied: ${serverMsg}`
+      : "You don't have permission to perform this action.";
+  }
+  if (status === 401) {
+    return 'Your session has expired. Please sign in again.';
+  }
+
+  // Backend body may be our ApiResponse — try to unwrap it
+  const responseData = error?.response?.data;
+
   // ASP.NET ModelState validation: { errors: { FieldName: ["msg"] } }
-  if (error?.errors && typeof error.errors === 'object') {
-    const messages = Object.entries(error.errors)
+  const errorPayload = responseData?.errors ?? error?.errors;
+  if (errorPayload && typeof errorPayload === 'object' && !Array.isArray(errorPayload)) {
+    const messages = Object.entries(errorPayload)
       .map(([field, msgs]) => {
         const msgList = Array.isArray(msgs) ? msgs : [msgs];
         return `${field}: ${msgList.join(', ')}`;
@@ -120,14 +137,18 @@ export function parseApiError(error: any): string {
       .join(' · ');
     return messages || 'Validation failed.';
   }
-  // Our ApiResponse: { success: false, message: "..." }
-  if (error?.message && typeof error.message === 'string') {
-    return error.message;
-  }
+
   // FluentValidation errors in our format: { errors: ["msg1", "msg2"] }
-  if (Array.isArray(error?.errors)) {
-    return error.errors.join(' · ');
+  if (Array.isArray(errorPayload)) {
+    return errorPayload.join(' · ');
   }
+
+  // Our ApiResponse: { success: false, message: "..." }
+  const msg = responseData?.message ?? error?.message;
+  if (msg && typeof msg === 'string' && !msg.includes('status code')) {
+    return msg;
+  }
+
   return 'An unexpected error occurred. Please try again.';
 }
 

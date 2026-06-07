@@ -22,6 +22,9 @@ namespace ServicePilot.Application.DTOs.Jobs
         public string? OldStatusName { get; set; }
         public string NewStatusName { get; set; } = string.Empty;
         public string? ChangedByName { get; set; }
+
+        /// <summary>Comment entered by the user when they changed the status, if any.</summary>
+        public string? Notes { get; set; }
         public DateTime ChangedAt { get; set; }
     }
 

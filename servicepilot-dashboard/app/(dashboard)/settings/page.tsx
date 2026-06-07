@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 // app/(dashboard)/settings/page.tsx
 // Company settings: Profile · Attendance Config · Branches · Departments ·
 // Positions · Leave Types · Job Types · Job Statuses
@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api/client';
+import { ConfirmDialog, type ConfirmDialogState } from '@/components/shared/ConfirmDialog';
 
 // ── Data hooks ────────────────────────────────────────────────────────────────
 
@@ -213,33 +214,29 @@ export default function SettingsPage() {
   );
 }
 
-// ── Field definitions (schema for each master data table) ────────────────────
+// ── Field definitions ─────────────────────────────────────────────────────────
 
 const branchFields = [
   { key: 'name',    label: 'Branch Name *',  type: 'text',   required: true  },
   { key: 'address', label: 'Address',         type: 'text',   required: false },
 ];
-
 const deptFields = [
   { key: 'name', label: 'Department Name *', type: 'text', required: true },
 ];
-
 const posFields = [
   { key: 'name',        label: 'Position Name *',  type: 'text', required: true  },
   { key: 'description', label: 'Description',       type: 'text', required: false },
 ];
-
 const leaveTypeFields = [
   { key: 'name',           label: 'Type Name *',       type: 'text',     required: true  },
   { key: 'maxDaysPerYear', label: 'Max Days / Year',   type: 'number',   required: false },
   { key: 'isPaid',         label: 'Is Paid',           type: 'checkbox', required: false },
 ];
-
+// Duration type: stored as total minutes, displayed as Days + Hours inputs
 const jobTypeFields = [
-  { key: 'name',                  label: 'Type Name *',           type: 'text',   required: true  },
-  { key: 'estimatedDurationMins', label: 'Est. Duration (mins)',  type: 'number', required: false },
+  { key: 'name',                  label: 'Type Name *',   type: 'text',     required: true  },
+  { key: 'estimatedDurationMins', label: 'Est. Duration', type: 'duration', required: false },
 ];
-
 const jobStatusFields = [
   { key: 'name',         label: 'Status Name *',  type: 'text',   required: true  },
   { key: 'colorCode',    label: 'Color Code',     type: 'color',  required: false },
@@ -247,6 +244,17 @@ const jobStatusFields = [
 ];
 
 type FieldDef = { key: string; label: string; type: string; required: boolean };
+
+/** Convert total minutes → human-readable string e.g. "2d 3h" */
+function formatDuration(mins: number): string {
+  if (!mins || mins <= 0) return '—';
+  const d = Math.floor(mins / (24 * 60));
+  const h = Math.floor((mins % (24 * 60)) / 60);
+  if (d > 0 && h > 0) return `${d}d ${h}h`;
+  if (d > 0) return `${d}d`;
+  if (h > 0) return `${h}h`;
+  return `${mins}min`;
+}
 
 // ── Generic CRUD panel for /api/org/* ─────────────────────────────────────────
 
@@ -259,19 +267,15 @@ function OrgCrudPanel({ resource, label, fields }: { resource: string; label: st
 
   const openAdd = () => {
     const empty: Record<string, any> = {};
-    fields.forEach(f => { empty[f.key] = f.type === 'checkbox' ? false : f.type === 'number' ? 0 : ''; });
-    setForm(empty);
-    setShowAdd(true);
-    setEditItem(null);
+    fields.forEach(f => { empty[f.key] = f.type === 'checkbox' ? false : (f.type === 'number' || f.type === 'duration') ? 0 : ''; });
+    setForm(empty); setShowAdd(true); setEditItem(null);
   };
 
   const openEdit = (item: any) => {
     const prefilled: Record<string, any> = {};
-    fields.forEach(f => { prefilled[f.key] = item[f.key] ?? (f.type === 'checkbox' ? false : f.type === 'number' ? 0 : ''); });
+    fields.forEach(f => { prefilled[f.key] = item[f.key] ?? (f.type === 'checkbox' ? false : (f.type === 'number' || f.type === 'duration') ? 0 : ''); });
     prefilled.isActive = item.isActive ?? true;
-    setForm(prefilled);
-    setEditItem(item);
-    setShowAdd(false);
+    setForm(prefilled); setEditItem(item); setShowAdd(false);
   };
 
   const save = useMutation({
@@ -285,25 +289,23 @@ function OrgCrudPanel({ resource, label, fields }: { resource: string; label: st
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org', resource] });
       qc.invalidateQueries({ queryKey: ['lookups'] });
-      setShowAdd(false);
-      setEditItem(null);
+      setShowAdd(false); setEditItem(null);
     },
   });
 
-  const deactivate = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/org/${resource}/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['org', resource] });
-      qc.invalidateQueries({ queryKey: ['lookups'] });
-    },
-  });
+  // onDeactivate returns a Promise so CrudPanel can await it and handle loading/error
+  const handleDeactivate = async (id: string): Promise<void> => {
+    await apiClient.delete(`/org/${resource}/${id}`);
+    await qc.invalidateQueries({ queryKey: ['org', resource] });
+    await qc.invalidateQueries({ queryKey: ['lookups'] });
+  };
 
   return (
     <CrudPanel
       label={label} items={items} isLoading={isLoading}
       showAdd={showAdd} editItem={editItem} form={form} fields={fields}
       onOpenAdd={openAdd} onOpenEdit={openEdit} onFormChange={(k, v) => setForm(f => ({ ...f, [k]: v }))}
-      onSave={() => save.mutate()} onDeactivate={(id: string) => deactivate.mutate(id)}
+      onSave={() => save.mutate()} onDeactivate={handleDeactivate}
       onCancel={() => { setShowAdd(false); setEditItem(null); }}
       isSaving={save.isPending}
     />
@@ -321,19 +323,15 @@ function MasterCrudPanel({ resource, label, fields }: { resource: string; label:
 
   const openAdd = () => {
     const empty: Record<string, any> = {};
-    fields.forEach(f => { empty[f.key] = f.type === 'checkbox' ? false : f.type === 'number' ? 0 : ''; });
-    setForm(empty);
-    setShowAdd(true);
-    setEditItem(null);
+    fields.forEach(f => { empty[f.key] = f.type === 'checkbox' ? false : (f.type === 'number' || f.type === 'duration') ? 0 : ''; });
+    setForm(empty); setShowAdd(true); setEditItem(null);
   };
 
   const openEdit = (item: any) => {
     const prefilled: Record<string, any> = {};
-    fields.forEach(f => { prefilled[f.key] = item[f.key] ?? (f.type === 'checkbox' ? false : f.type === 'number' ? 0 : ''); });
+    fields.forEach(f => { prefilled[f.key] = item[f.key] ?? (f.type === 'checkbox' ? false : (f.type === 'number' || f.type === 'duration') ? 0 : ''); });
     prefilled.isActive = item.isActive ?? true;
-    setForm(prefilled);
-    setEditItem(item);
-    setShowAdd(false);
+    setForm(prefilled); setEditItem(item); setShowAdd(false);
   };
 
   const save = useMutation({
@@ -347,25 +345,23 @@ function MasterCrudPanel({ resource, label, fields }: { resource: string; label:
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['master', resource] });
       qc.invalidateQueries({ queryKey: ['lookups'] });
-      setShowAdd(false);
-      setEditItem(null);
+      setShowAdd(false); setEditItem(null);
     },
   });
 
-  const deactivate = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/master/${resource}/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['master', resource] });
-      qc.invalidateQueries({ queryKey: ['lookups'] });
-    },
-  });
+  // onDeactivate returns a Promise so CrudPanel can await it and handle loading/error
+  const handleDeactivate = async (id: string): Promise<void> => {
+    await apiClient.delete(`/master/${resource}/${id}`);
+    await qc.invalidateQueries({ queryKey: ['master', resource] });
+    await qc.invalidateQueries({ queryKey: ['lookups'] });
+  };
 
   return (
     <CrudPanel
       label={label} items={items} isLoading={isLoading}
       showAdd={showAdd} editItem={editItem} form={form} fields={fields}
       onOpenAdd={openAdd} onOpenEdit={openEdit} onFormChange={(k, v) => setForm(f => ({ ...f, [k]: v }))}
-      onSave={() => save.mutate()} onDeactivate={(id: string) => deactivate.mutate(id)}
+      onSave={() => save.mutate()} onDeactivate={handleDeactivate}
       onCancel={() => { setShowAdd(false); setEditItem(null); }}
       isSaving={save.isPending}
     />
@@ -382,128 +378,227 @@ function CrudPanel({
   form: Record<string, any>; fields: FieldDef[];
   onOpenAdd: () => void; onOpenEdit: (item: any) => void;
   onFormChange: (key: string, value: any) => void;
-  onSave: () => void; onDeactivate: (id: string) => void;
+  onSave: () => void;
+  // Async — CrudPanel awaits this to drive loading state and error feedback
+  onDeactivate: (id: string) => Promise<void>;
   onCancel: () => void; isSaving: boolean;
 }) {
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
+
+  const handleDeactivateRequest = (id: string, name: string) => {
+    setDeactivateError(null);
+    setConfirmDialog({
+      title: `Deactivate ${label}`,
+      message: `Are you sure you want to deactivate "${name}"? It will no longer be available for selection. You can reactivate it later via the Edit option.`,
+      confirmLabel: 'Deactivate',
+      confirmCls: 'bg-red-600 hover:bg-red-700',
+      onConfirm: () => {
+        setIsDeactivating(true);
+        setDeactivateError(null);
+        onDeactivate(id)
+          .then(() => {
+            setIsDeactivating(false);
+            setConfirmDialog(null);
+          })
+          .catch((err: any) => {
+            setIsDeactivating(false);
+            setConfirmDialog(null); // close dialog so the error banner is visible
+            // The response interceptor rejects with err.response.data (already the body)
+            const msg =
+              err?.message ||
+              (typeof err === 'string' ? err : null) ||
+              'Failed to deactivate. Please try again.';
+            setDeactivateError(msg);
+          });
+      },
+    });
+  };
+
   const activeItems = (items as any[]).filter(i => i.isActive !== false);
   const inactiveItems = (items as any[]).filter(i => i.isActive === false);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* Panel header */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-        <div>
-          <div className="text-[15px] font-semibold text-gray-900">{label}s</div>
-          <div className="text-[12px] text-gray-500 mt-0.5">{activeItems.length} active</div>
-        </div>
-        <button onClick={onOpenAdd}
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add {label}
-        </button>
-      </div>
+    <>
+      {/* App-theme confirm dialog — stays open while deactivating, shows loading spinner */}
+      <ConfirmDialog
+        state={confirmDialog}
+        onClose={() => {
+          if (!isDeactivating) {
+            setConfirmDialog(null);
+            setDeactivateError(null);
+          }
+        }}
+        isLoading={isDeactivating}
+      />
 
-      {/* Add / Edit form */}
-      {(showAdd || editItem) && (
-        <div className="border-b border-gray-100 bg-blue-50/40 px-5 py-4">
-          <div className="text-[13px] font-semibold text-gray-800 mb-3">
-            {editItem ? `Edit ${label}` : `New ${label}`}
+      {/* Error banner shown below the panel when deactivation fails */}
+      {deactivateError && (
+        <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" className="mt-0.5 flex-shrink-0">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div className="flex-1">
+            <p className="text-[13px] font-medium text-red-800">Deactivation failed</p>
+            <p className="text-[12px] text-red-600 mt-0.5">{deactivateError}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            {fields.map(f => (
-              <div key={f.key} className={f.type === 'checkbox' ? 'flex items-center gap-2 col-span-1' : 'col-span-1'}>
-                {f.type === 'checkbox' ? (
-                  <>
-                    <input type="checkbox" id={f.key} checked={!!form[f.key]}
-                      onChange={e => onFormChange(f.key, e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                    <label htmlFor={f.key} className="text-[13px] font-medium text-gray-700">{f.label}</label>
-                  </>
-                ) : f.type === 'color' ? (
-                  <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-gray-600">{f.label}</label>
-                    <div className="flex items-center gap-2">
-                      <input type="color" value={form[f.key] || '#94a3b8'}
-                        onChange={e => onFormChange(f.key, e.target.value)}
-                        className="h-9 w-12 cursor-pointer rounded border border-gray-200"/>
-                      <span className="text-[12px] font-mono text-gray-500">{form[f.key] || '#94a3b8'}</span>
+          <button onClick={() => setDeactivateError(null)} className="text-red-400 hover:text-red-600">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        {/* Panel header */}
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <div>
+            <div className="text-[15px] font-semibold text-gray-900">{label}s</div>
+            <div className="text-[12px] text-gray-500 mt-0.5">{activeItems.length} active</div>
+          </div>
+          <button onClick={onOpenAdd}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add {label}
+          </button>
+        </div>
+
+        {/* Add / Edit form */}
+        {(showAdd || editItem) && (
+          <div className="border-b border-gray-100 bg-blue-50/40 px-5 py-4">
+            <div className="text-[13px] font-semibold text-gray-800 mb-3">
+              {editItem ? `Edit ${label}` : `New ${label}`}
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {fields.map(f => (
+                <div key={f.key} className={
+                  f.type === 'checkbox' ? 'flex items-center gap-2 col-span-1'
+                  : f.type === 'duration' ? 'col-span-2'
+                  : 'col-span-1'
+                }>
+                  {f.type === 'checkbox' ? (
+                    <>
+                      <input type="checkbox" id={f.key} checked={!!form[f.key]}
+                        onChange={e => onFormChange(f.key, e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
+                      <label htmlFor={f.key} className="text-[13px] font-medium text-gray-700">{f.label}</label>
+                    </>
+                  ) : f.type === 'color' ? (
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-gray-600">{f.label}</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={form[f.key] || '#94a3b8'}
+                          onChange={e => onFormChange(f.key, e.target.value)}
+                          className="h-9 w-12 cursor-pointer rounded border border-gray-200"/>
+                        <span className="text-[12px] font-mono text-gray-500">{form[f.key] || '#94a3b8'}</span>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-gray-600">{f.label}</label>
-                    <input
-                      type={f.type === 'number' ? 'number' : 'text'}
-                      value={form[f.key] ?? ''}
-                      onChange={e => onFormChange(f.key, f.type === 'number' ? Number(e.target.value) : e.target.value)}
-                      className={inp}/>
-                  </div>
-                )}
+                  ) : f.type === 'duration' ? (
+                    // Days + Hours split input — stores total minutes internally
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-gray-600">{f.label}</label>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const totalMins = Number(form[f.key]) || 0;
+                          const dDays = Math.floor(totalMins / (24 * 60));
+                          const dHours = Math.floor((totalMins % (24 * 60)) / 60);
+                          return (
+                            <>
+                              <input type="number" min={0} value={dDays}
+                                onChange={e => {
+                                  const nd = Math.max(0, Number(e.target.value) || 0);
+                                  onFormChange(f.key, nd * 24 * 60 + dHours * 60);
+                                }}
+                                className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition-colors"
+                              />
+                              <span className="text-[12px] font-medium text-gray-500">Days</span>
+                              <input type="number" min={0} max={23} value={dHours}
+                                onChange={e => {
+                                  const nh = Math.max(0, Math.min(23, Number(e.target.value) || 0));
+                                  onFormChange(f.key, dDays * 24 * 60 + nh * 60);
+                                }}
+                                className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition-colors"
+                              />
+                              <span className="text-[12px] font-medium text-gray-500">Hours</span>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-gray-600">{f.label}</label>
+                      <input
+                        type={f.type === 'number' ? 'number' : 'text'}
+                        value={form[f.key] ?? ''}
+                        onChange={e => onFormChange(f.key, f.type === 'number' ? Number(e.target.value) : e.target.value)}
+                        className={inp}/>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {editItem && (
+                <div className="flex items-center gap-2 col-span-1">
+                  <input type="checkbox" id="isActive" checked={!!form.isActive}
+                    onChange={e => onFormChange('isActive', e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
+                  <label htmlFor="isActive" className="text-[13px] font-medium text-gray-700">Active</label>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={onCancel}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={onSave} disabled={isSaving}
+                className="flex items-center gap-2 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70 transition-colors">
+                {isSaving && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                {editItem ? 'Save Changes' : `Create ${label}`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* List */}
+        {isLoading ? (
+          <div className="divide-y divide-gray-50">
+            {[1,2,3].map(i => (
+              <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+                <div className="h-4 w-48 rounded bg-gray-100 animate-pulse"/>
+                <div className="ml-auto h-6 w-16 rounded-full bg-gray-100 animate-pulse"/>
               </div>
             ))}
-            {editItem && (
-              <div className="flex items-center gap-2 col-span-1">
-                <input type="checkbox" id="isActive" checked={!!form.isActive}
-                  onChange={e => onFormChange('isActive', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                <label htmlFor="isActive" className="text-[13px] font-medium text-gray-700">Active</label>
-              </div>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="py-10 text-center text-[13px] text-gray-400">No {label.toLowerCase()}s yet</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {activeItems.map((item: any) => (
+              <ItemRow key={item.id} item={item} fields={fields}
+                onEdit={onOpenEdit} onDeactivateRequest={handleDeactivateRequest}/>
+            ))}
+            {inactiveItems.length > 0 && (
+              <>
+                <div className="bg-gray-50 px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Inactive
+                </div>
+                {inactiveItems.map((item: any) => (
+                  <ItemRow key={item.id} item={item} fields={fields}
+                    onEdit={onOpenEdit} onDeactivateRequest={handleDeactivateRequest} inactive/>
+                ))}
+              </>
             )}
           </div>
-          <div className="flex gap-2">
-            <button onClick={onCancel}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancel
-            </button>
-            <button onClick={onSave} disabled={isSaving}
-              className="flex items-center gap-2 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70 transition-colors">
-              {isSaving && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
-              {editItem ? 'Save Changes' : `Create ${label}`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* List */}
-      {isLoading ? (
-        <div className="divide-y divide-gray-50">
-          {[1,2,3].map(i => (
-            <div key={i} className="flex items-center gap-4 px-5 py-3.5">
-              <div className="h-4 w-48 rounded bg-gray-100 animate-pulse"/>
-              <div className="ml-auto h-6 w-16 rounded-full bg-gray-100 animate-pulse"/>
-            </div>
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        <div className="py-10 text-center text-[13px] text-gray-400">No {label.toLowerCase()}s yet</div>
-      ) : (
-        <div className="divide-y divide-gray-50">
-          {/* Active */}
-          {activeItems.map((item: any) => (
-            <ItemRow key={item.id} item={item} fields={fields}
-              onEdit={onOpenEdit} onDeactivate={onDeactivate}/>
-          ))}
-          {/* Inactive section */}
-          {inactiveItems.length > 0 && (
-            <>
-              <div className="bg-gray-50 px-5 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                Inactive
-              </div>
-              {inactiveItems.map((item: any) => (
-                <ItemRow key={item.id} item={item} fields={fields}
-                  onEdit={onOpenEdit} onDeactivate={onDeactivate} inactive/>
-              ))}
-            </>
-          )}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
 
-function ItemRow({ item, fields, onEdit, onDeactivate, inactive = false }: {
+function ItemRow({ item, fields, onEdit, onDeactivateRequest, inactive = false }: {
   item: any; fields: FieldDef[]; onEdit: (i: any) => void;
-  onDeactivate: (id: string) => void; inactive?: boolean;
+  onDeactivateRequest: (id: string, name: string) => void; inactive?: boolean;
 }) {
   const primaryField = fields[0];
   const secondaryFields = fields.slice(1);
@@ -513,7 +608,6 @@ function ItemRow({ item, fields, onEdit, onDeactivate, inactive = false }: {
       <div className="flex-1 min-w-0">
         <div className="text-[13px] font-medium text-gray-900">
           {item[primaryField.key] || '—'}
-          {/* Color swatch for job statuses */}
           {item.colorCode && (
             <span className="ml-2 inline-block h-3 w-3 rounded-full border border-gray-200" style={{ background: item.colorCode }}/>
           )}
@@ -524,9 +618,12 @@ function ItemRow({ item, fields, onEdit, onDeactivate, inactive = false }: {
               if (f.type === 'checkbox' || f.key === 'colorCode') return null;
               const val = item[f.key];
               if (!val && val !== 0 && val !== false) return null;
+              const displayVal = f.type === 'duration'
+                ? formatDuration(Number(val))
+                : typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val;
               return (
                 <span key={f.key} className="text-[11px] text-gray-400">
-                  {f.label.replace(' *','')}: {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val}
+                  {f.label.replace(' *','')}: {displayVal}
                 </span>
               );
             })}
@@ -544,7 +641,8 @@ function ItemRow({ item, fields, onEdit, onDeactivate, inactive = false }: {
           Edit
         </button>
         {!inactive && (
-          <button onClick={() => confirm(`Deactivate ${item[primaryField.key]}?`) && onDeactivate(item.id)}
+          <button
+            onClick={() => onDeactivateRequest(item.id, item[primaryField.key] || 'this item')}
             className="rounded-md px-2.5 py-1 text-[12px] font-medium text-red-500 hover:bg-red-50 transition-colors">
             Deactivate
           </button>

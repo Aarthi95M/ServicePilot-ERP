@@ -1,6 +1,7 @@
 ﻿'use client';
 // app/(dashboard)/attendance/page.tsx
 // Includes: manual attendance adjustment (supervisor / admin)
+//           Add manual attendance record for forgotten check-ins
 //           Live technician tracking map via React Leaflet
 
 import { useState } from 'react';
@@ -65,7 +66,7 @@ function AdjustModal({ record, onClose, onSaved }: AdjustModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between">
@@ -165,6 +166,156 @@ function AdjustModal({ record, onClose, onSaved }: AdjustModalProps) {
   );
 }
 
+// ─── Add manual record modal ──────────────────────────────────────────────────
+interface AddManualRecordModalProps {
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function AddManualRecordModal({ onClose, onSaved }: AddManualRecordModalProps) {
+  const [employeeId, setEmployeeId] = useState('');
+  const [checkIn,    setCheckIn]    = useState('');
+  const [checkOut,   setCheckOut]   = useState('');
+  const [notes,      setNotes]      = useState('');
+  const [error,      setError]      = useState('');
+
+  // Load employee lookup — same endpoint & cache key used by Jobs reassign
+  const { data: employees = [], isLoading: empLoading } = useQuery({
+    queryKey: ['employee-lookup'],
+    queryFn: async () => {
+      const r = await apiClient.get('/lookups/employees');
+      return r.data.data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        employeeId,
+        checkInTime:  localToUtcIso(checkIn),
+        checkOutTime: checkOut ? localToUtcIso(checkOut) : null,
+        notes:        notes || null,
+      };
+      const res = await apiClient.post('/attendance/manual', payload);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data.success === false) { setError(data.message || 'Failed to create record.'); return; }
+      onSaved();
+    },
+    onError: (e: any) => setError(e?.message ?? e?.response?.data?.message ?? 'Something went wrong.'),
+  });
+
+  const handleSubmit = () => {
+    setError('');
+    if (!employeeId)  { setError('Please select an employee.'); return; }
+    if (!checkIn)     { setError('Check-in time is required.'); return; }
+    if (checkOut && new Date(checkOut) <= new Date(checkIn)) {
+      setError('Check-out must be after check-in.'); return;
+    }
+    mutation.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+
+        {/* Header */}
+        <div className="mb-5 flex items-start justify-between">
+          <div>
+            <h2 className="text-[16px] font-bold text-gray-900">Add Manual Attendance Record</h2>
+            <p className="mt-0.5 text-[13px] text-gray-500">For employees who forgot to check in</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Fields */}
+        <div className="space-y-4">
+
+          {/* Employee dropdown — matches Jobs reassign style */}
+          <div>
+            <label className="mb-1 block text-[12px] font-semibold text-gray-600">Employee *</label>
+            <select
+              value={employeeId}
+              onChange={e => setEmployeeId(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            >
+              <option value="">{empLoading ? 'Loading employees…' : 'Select employee…'}</option>
+              {(employees as any[]).map((e: any) => (
+                <option key={e.id} value={e.id}>{e.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Check-In Time */}
+          <div>
+            <label className="mb-1 block text-[12px] font-semibold text-gray-600">Check-In Time *</label>
+            <input
+              type="datetime-local"
+              value={checkIn}
+              onChange={e => setCheckIn(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+          </div>
+
+          {/* Check-Out Time */}
+          <div>
+            <label className="mb-1 block text-[12px] font-semibold text-gray-600">Check-Out Time <span className="font-normal text-gray-400">(optional)</span></label>
+            <input
+              type="datetime-local"
+              value={checkOut}
+              onChange={e => setCheckOut(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="mb-1 block text-[12px] font-semibold text-gray-600">Notes <span className="font-normal text-gray-400">(optional)</span></label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="e.g. Employee forgot to check in, admin override…"
+              rows={2}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all resize-none placeholder:text-gray-400"
+            />
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-600">
+            {error}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={mutation.isPending}
+            className="flex-1 rounded-lg border border-gray-200 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={mutation.isPending || !employeeId || !checkIn}
+            className="flex-1 rounded-lg bg-btn py-2 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Saving…' : 'Create Record'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Dashboard query — auto-refreshes every 60 seconds (live attendance)
 function useAttendanceDashboard() {
   return useQuery({
@@ -210,7 +361,8 @@ const STATUS_OPTIONS = [
 export default function AttendancePage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<'dashboard' | 'list'>('dashboard');
-  const [adjustRecord, setAdjustRecord] = useState<any | null>(null);
+  const [adjustRecord,     setAdjustRecord]     = useState<any | null>(null);
+  const [showManualModal,  setShowManualModal]   = useState(false);
 
   // List filter state — each key matches AttendanceFilterDto property names
   const [filters, setFilters] = useState<{
@@ -259,13 +411,24 @@ export default function AttendancePage() {
           <h1 className="text-[22px] font-bold tracking-tight text-gray-900">Attendance</h1>
           <p className="mt-0.5 text-[13px] text-gray-500">Track daily attendance and check-ins</p>
         </div>
-        <div className="flex rounded-lg border border-gray-200 bg-white p-1">
-          {(['dashboard', 'list'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`rounded-md px-4 py-1.5 text-[13px] font-medium capitalize transition-colors ${tab === t ? 'bg-btn text-white' : 'text-gray-600 hover:text-gray-800'}`}>
-              {t === 'dashboard' ? 'Today' : 'History'}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowManualModal(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-btn px-3.5 py-1.5 text-[13px] font-semibold text-white hover:bg-btn-hover transition-colors shadow-sm"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Manual Record
+          </button>
+          <div className="flex rounded-lg border border-gray-200 bg-white p-1">
+            {(['dashboard', 'list'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`rounded-md px-4 py-1.5 text-[13px] font-medium capitalize transition-colors ${tab === t ? 'bg-btn text-white' : 'text-gray-600 hover:text-gray-800'}`}>
+                {t === 'dashboard' ? 'Today' : 'History'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -660,6 +823,18 @@ export default function AttendancePage() {
           onClose={() => setAdjustRecord(null)}
           onSaved={() => {
             setAdjustRecord(null);
+            qc.invalidateQueries({ queryKey: ['attendance-list'] });
+            qc.invalidateQueries({ queryKey: ['attendance-dashboard'] });
+          }}
+        />
+      )}
+
+      {/* ── ADD MANUAL RECORD MODAL ── */}
+      {showManualModal && (
+        <AddManualRecordModal
+          onClose={() => setShowManualModal(false)}
+          onSaved={() => {
+            setShowManualModal(false);
             qc.invalidateQueries({ queryKey: ['attendance-list'] });
             qc.invalidateQueries({ queryKey: ['attendance-dashboard'] });
           }}

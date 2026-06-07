@@ -527,7 +527,11 @@ namespace ServicePilot.Infrastructure.Services
 
             _repository.Update(job);
 
-            // Write history ONLY after all validation passes
+            // Write history ONLY after all validation passes.
+            // Notes/comments entered alongside the status change are persisted
+            // here — previously UpdateJobStatusDto didn't even have a Notes
+            // property, so anything typed in the "Add a note" field on mobile
+            // was silently dropped and never appeared anywhere (web or mobile).
             await _repository.AddStatusHistoryAsync(new JobStatusHistory
             {
                 Id = Guid.NewGuid(),
@@ -535,6 +539,7 @@ namespace ServicePilot.Infrastructure.Services
                 OldStatusId = oldStatusId,
                 NewStatusId = dto.JobStatusId,
                 ChangedBy = _currentUser.UserId,
+                Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim(),
                 ChangedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             });
@@ -698,6 +703,7 @@ namespace ServicePilot.Infrastructure.Services
                         OldStatusName = h.OldStatus?.Name,
                         NewStatusName = h.NewStatus?.Name ?? string.Empty,
                         ChangedByName = h.ChangedByNavigation?.FullName,
+                        Notes = h.Notes,
                         ChangedAt = h.ChangedAt
                     }).ToList() ?? [],
 

@@ -236,9 +236,19 @@ namespace ServicePilot.Infrastructure.Services
                     type: "overtime");
             }
 
-            var updated = await _repository.GetByIdAsync(
-                request.Id, _currentUser.CompanyId);
-            return Ok(MapToDto(updated!));
+            // Post-save fetch — defensive so a transient query failure never
+            // hides a successful approve/reject.
+            // request already has Employee loaded (from the GetByIdAsync at the top).
+            try
+            {
+                var updated = await _repository.GetByIdAsync(
+                    request.Id, _currentUser.CompanyId);
+                return Ok(MapToDto(updated!));
+            }
+            catch
+            {
+                return Ok(MapToDto(request));
+            }
         }
 
         // ════════════════════════════════════════════════════════════════

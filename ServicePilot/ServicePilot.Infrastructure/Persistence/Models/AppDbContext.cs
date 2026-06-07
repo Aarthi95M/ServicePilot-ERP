@@ -545,6 +545,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.JobId).HasColumnName("job_id");
             entity.Property(e => e.NewStatusId).HasColumnName("new_status_id");
             entity.Property(e => e.OldStatusId).HasColumnName("old_status_id");
+            entity.Property(e => e.Notes).HasColumnName("notes");
 
             entity.HasOne(d => d.ChangedByNavigation).WithMany(p => p.JobStatusHistories)
                 .HasForeignKey(d => d.ChangedBy)

@@ -1,39 +1,35 @@
-// app/jobs/[id].tsx — Job detail: info, status updates, notes, photo upload
+// app/jobs/[id].tsx — Job detail: info, dynamic status update, photo upload
+// v2 fixes:
+//   - Uses job.jobStatusName (not job.status which was undefined)
+//   - Status transitions are dynamic — loaded from /api/lookups/job-statuses
+//   - updateStatus now sends jobStatusId (GUID) not a status name
+//   - Photo upload sends { photoBase64, photoType, caption } matching UploadJobPhotoDto
+//   - Corrected field names: scheduledAt, customerPhone, photos[].photoUrl
 
 import { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Alert, Image, ActivityIndicator
+  TextInput, Alert, Image, ActivityIndicator, Linking,
 } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { jobsApi } from '@/lib/api/jobs';
+import { lookupsApi } from '@/lib/api/lookups';
 import { Card } from '@/components/shared/Card';
 import { Badge, statusVariant } from '@/components/shared/Badge';
 import { Button } from '@/components/shared/Button';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { Colors, Spacing, FontSize, FontWeight, Radius } from '@/constants/theme';
 
-// Next-status transitions a technician can trigger
-const STATUS_TRANSITIONS: Record<string, { label: string; next: string; variant: 'primary' | 'danger' | 'secondary' }[]> = {
-  Pending:    [{ label: '▶ Start Job',    next: 'InProgress', variant: 'primary' }],
-  InProgress: [
-    { label: '✅ Complete',  next: 'Completed',  variant: 'primary' },
-    { label: '⏸ Put On Hold', next: 'OnHold',   variant: 'secondary' },
-  ],
-  OnHold:     [{ label: '▶ Resume',       next: 'InProgress', variant: 'primary' }],
-  Completed:  [],
-  Cancelled:  [],
-};
-
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const qc = useQueryClient();
-  const [notes,         setNotes]         = useState('');
-  const [savingNotes,   setSavingNotes]   = useState(false);
+  const [notes, setNotes] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showAllStatuses, setShowAllStatuses] = useState(false);
 
+  // Load job detail
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
     queryFn:  () => jobsApi.getById(id!),
@@ -41,59 +37,90 @@ export default function JobDetailScreen() {
     enabled:  !!id,
   });
 
+  // Load all available statuses for the company — used to build transition buttons
+  const { data: allStatuses = [] } = useQuery({
+    queryKey: ['job-statuses-lookup'],
+    queryFn:  lookupsApi.getJobStatuses,
+    staleTime: 5 * 60_000,
+  });
+
   const updateStatus = useMutation({
-    mutationFn: ({ status }: { status: string }) => jobsApi.updateStatus(id!, status, notes.trim() || undefined),
+    mutationFn: ({ statusId }: { statusId: string }) =>
+      jobsApi.updateStatus(id!, statusId, notes.trim() || undefined),
     onSuccess: (res) => {
       if (!res.success) { Alert.alert('Error', res.message || 'Update failed.'); return; }
       qc.invalidateQueries({ queryKey: ['job', id] });
       qc.invalidateQueries({ queryKey: ['my-jobs'] });
-      Alert.alert('✅ Updated', `Job status changed.`);
+      setNotes('');
+      Alert.alert('✅ Updated', 'Job status changed successfully.');
     },
-    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Something went wrong.'),
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? e?.message ?? 'Something went wrong.'),
   });
 
-  const handleStatusChange = (next: string) => {
+  const handleStatusChange = (statusId: string, statusName: string) => {
     Alert.alert(
-      'Confirm',
-      `Change status to "${next}"?`,
+      'Update Status',
+      `Change status to "${statusName}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm', onPress: () => updateStatus.mutate({ status: next }) },
-      ]
+        { text: 'Confirm', onPress: () => updateStatus.mutate({ statusId }) },
+      ],
     );
+  };
+
+  const doPhotoUpload = async (base64: string, filename: string) => {
+    setUploadingPhoto(true);
+    try {
+      const res = await jobsApi.uploadPhoto(id!, base64, filename);
+      if (!res.success) { Alert.alert('Upload failed', res.message || 'Try again.'); return; }
+      qc.invalidateQueries({ queryKey: ['job', id] });
+      Alert.alert('✅ Photo uploaded');
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.response?.data?.message ?? e?.message ?? 'Something went wrong.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // "Download photos" — there was no way to save/export a job photo at all
+  // (only upload). Saving directly to the gallery would need expo-media-library
+  // / expo-sharing, which aren't installed and would require a native rebuild.
+  // Opening the photo URL in the system browser is a zero-dependency option
+  // that works on iOS & Android: the browser's native image viewer lets the
+  // user long-press → "Save/Download image" straight to their device.
+  const handleDownloadPhoto = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        return;
+      }
+      throw new Error('unsupported');
+    } catch {
+      Alert.alert(
+        'Could not open photo',
+        'Long-press the photo thumbnail to copy its link, or check your internet connection.',
+      );
+    }
   };
 
   const handlePhotoUpload = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow photo library access to upload photos.');
+      Alert.alert('Permission needed', 'Please allow photo library access.');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
-      quality: 0.7,
+      quality: 0.6,
       base64: true,
     });
-
     if (result.canceled || !result.assets[0]) return;
-
     const asset = result.assets[0];
     if (!asset.base64) { Alert.alert('Error', 'Could not read photo data.'); return; }
-
-    setUploadingPhoto(true);
-    try {
-      const ext = asset.uri.split('.').pop() ?? 'jpg';
-      const res = await jobsApi.uploadPhoto(id!, asset.base64, `photo.${ext}`);
-      if (!res.success) { Alert.alert('Upload failed', res.message || 'Try again.'); return; }
-      qc.invalidateQueries({ queryKey: ['job', id] });
-      Alert.alert('✅ Photo uploaded');
-    } catch (e: any) {
-      Alert.alert('Upload failed', e?.response?.data?.message ?? 'Something went wrong.');
-    } finally {
-      setUploadingPhoto(false);
-    }
+    const ext = asset.uri.split('.').pop() ?? 'jpg';
+    await doPhotoUpload(asset.base64, `photo.${ext}`);
   };
 
   const handleCameraCapture = async () => {
@@ -102,29 +129,15 @@ export default function JobDetailScreen() {
       Alert.alert('Permission needed', 'Please allow camera access.');
       return;
     }
-
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
-      quality: 0.7,
+      quality: 0.6,
       base64: true,
     });
-
     if (result.canceled || !result.assets[0]) return;
-
     const asset = result.assets[0];
     if (!asset.base64) { Alert.alert('Error', 'Could not read photo data.'); return; }
-
-    setUploadingPhoto(true);
-    try {
-      const res = await jobsApi.uploadPhoto(id!, asset.base64, 'photo.jpg');
-      if (!res.success) { Alert.alert('Upload failed', res.message || 'Try again.'); return; }
-      qc.invalidateQueries({ queryKey: ['job', id] });
-      Alert.alert('✅ Photo captured & uploaded');
-    } catch (e: any) {
-      Alert.alert('Upload failed', e?.response?.data?.message ?? 'Something went wrong.');
-    } finally {
-      setUploadingPhoto(false);
-    }
+    await doPhotoUpload(asset.base64, 'photo.jpg');
   };
 
   if (isLoading) {
@@ -146,8 +159,20 @@ export default function JobDetailScreen() {
     );
   }
 
-  const transitions = STATUS_TRANSITIONS[job.status] ?? [];
-  const photos: string[] = job.photoUrls ?? job.photos ?? [];
+  // Current status from API
+  const currentStatusName = job.jobStatusName ?? job.status ?? '';
+  const currentStatusId   = job.jobStatusId ?? '';
+
+  // Build available status transitions: all statuses except the current one
+  const availableTransitions = allStatuses.filter(s => s.id !== currentStatusId);
+  const visibleTransitions = showAllStatuses
+    ? availableTransitions
+    : availableTransitions.slice(0, 3);
+
+  // Photos: job detail has a photos array, each item has photoUrl
+  const photos: string[] = (job.photos ?? [])
+    .map((p: any) => p.photoUrl ?? p)
+    .filter(Boolean);
 
   return (
     <>
@@ -159,28 +184,33 @@ export default function JobDetailScreen() {
         <Card style={styles.headerCard}>
           <View style={styles.headerRow}>
             <Text style={styles.jobNumber}>{job.jobNumber}</Text>
-            <Badge label={job.status} variant={statusVariant(job.status)} />
+            <Badge label={currentStatusName} variant={statusVariant(currentStatusName)} />
           </View>
           <Text style={styles.customerName}>{job.customerName}</Text>
-          {job.address && <Text style={styles.address}>📍 {job.address}</Text>}
-          {job.scheduledDate && (
-            <Text style={styles.meta}>🗓 Scheduled: {formatDate(job.scheduledDate)}</Text>
+          {!!job.address && <Text style={styles.address}>📍 {job.address}</Text>}
+          {!!job.scheduledAt && (
+            <Text style={styles.meta}>🗓 Scheduled: {formatDate(job.scheduledAt)}</Text>
           )}
-          {job.assignedDate && (
-            <Text style={styles.meta}>📋 Assigned: {formatDate(job.assignedDate)}</Text>
+          {!!job.assignedEmployeeName && (
+            <Text style={styles.meta}>👷 Assigned to: {job.assignedEmployeeName}</Text>
+          )}
+          {!!job.priorityLabel && job.priorityLabel !== 'Low' && (
+            <Text style={[styles.meta, { color: priorityColor(job.priorityLabel) }]}>
+              ⚑ Priority: {job.priorityLabel}
+            </Text>
           )}
         </Card>
 
-        {/* Description */}
-        {job.description && (
+        {/* Notes / description */}
+        {!!job.notes && (
           <Card>
-            <Text style={styles.sectionLabel}>Description</Text>
-            <Text style={styles.description}>{job.description}</Text>
+            <Text style={styles.sectionLabel}>Notes</Text>
+            <Text style={styles.noteText}>{job.notes}</Text>
           </Card>
         )}
 
-        {/* Status actions */}
-        {transitions.length > 0 && (
+        {/* Status update */}
+        {availableTransitions.length > 0 && (
           <Card>
             <Text style={styles.sectionLabel}>Update Status</Text>
 
@@ -199,28 +229,57 @@ export default function JobDetailScreen() {
             </View>
 
             <View style={styles.actionRow}>
-              {transitions.map(t => (
-                <Button
-                  key={t.next}
-                  label={t.label}
-                  onPress={() => handleStatusChange(t.next)}
-                  loading={updateStatus.isPending}
-                  variant={t.variant}
-                  style={styles.actionBtn}
-                />
+              {visibleTransitions.map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.statusBtn, updateStatus.isPending && styles.statusBtnDisabled]}
+                  onPress={() => handleStatusChange(s.id, s.label)}
+                  disabled={updateStatus.isPending}
+                >
+                  {updateStatus.isPending
+                    ? <ActivityIndicator size="small" color={Colors.primary} />
+                    : <Text style={styles.statusBtnText}>{s.label}</Text>
+                  }
+                </TouchableOpacity>
               ))}
             </View>
+
+            {availableTransitions.length > 3 && (
+              <TouchableOpacity
+                style={styles.showMoreBtn}
+                onPress={() => setShowAllStatuses(v => !v)}
+              >
+                <Text style={styles.showMoreText}>
+                  {showAllStatuses ? 'Show fewer' : `+ ${availableTransitions.length - 3} more statuses`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </Card>
         )}
 
         {/* Photos */}
         <Card>
-          <Text style={styles.sectionLabel}>Photos</Text>
+          <Text style={styles.sectionLabel}>
+            Photos {photos.length > 0 ? `(${photos.length})` : ''}
+          </Text>
 
           {photos.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.photoRow}
+            >
               {photos.map((url: string, i: number) => (
-                <Image key={i} source={{ uri: url }} style={styles.photo} resizeMode="cover" />
+                <View key={i} style={styles.photoWrap}>
+                  <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
+                  <TouchableOpacity
+                    style={styles.downloadBtn}
+                    onPress={() => handleDownloadPhoto(url)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text style={styles.downloadBtnText}>⬇ Save</Text>
+                  </TouchableOpacity>
+                </View>
               ))}
             </ScrollView>
           )}
@@ -236,32 +295,48 @@ export default function JobDetailScreen() {
                 <Text style={styles.photoBtnText}>📷 Take Photo</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.photoBtn} onPress={handlePhotoUpload}>
-                <Text style={styles.photoBtnText}>🖼 Upload from Library</Text>
+                <Text style={styles.photoBtnText}>🖼 From Library</Text>
               </TouchableOpacity>
             </View>
           )}
         </Card>
 
-        {/* Job history / notes */}
-        {(job.notes || job.completionNotes) && (
+        {/* Status history */}
+        {(job.statusHistory ?? []).length > 0 && (
           <Card>
-            <Text style={styles.sectionLabel}>Notes</Text>
-            {job.notes         && <Text style={styles.noteText}>{job.notes}</Text>}
-            {job.completionNotes && (
-              <>
-                <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Completion Notes</Text>
-                <Text style={styles.noteText}>{job.completionNotes}</Text>
-              </>
-            )}
+            <Text style={styles.sectionLabel}>Status History</Text>
+            {(job.statusHistory as any[]).slice(0, 5).map((h: any, i: number) => (
+              <View key={i} style={styles.historyRow}>
+                <View style={styles.historyDot} />
+                <View style={styles.historyContent}>
+                  <Text style={styles.historyStatus}>
+                    {h.oldStatusName ? `${h.oldStatusName} → ` : ''}{h.newStatusName}
+                  </Text>
+                  <Text style={styles.historyMeta}>
+                    {h.changedByName ?? 'System'} · {h.changedAt ? formatDate(h.changedAt) : ''}
+                  </Text>
+                  {/* Comment entered when the status was changed — previously
+                      captured in the UI but silently dropped by the API
+                      (UpdateJobStatusDto had no Notes field, and
+                      JobStatusHistory had no column to store it), so it never
+                      showed up here or anywhere on the web dashboard. */}
+                  {!!h.notes && (
+                    <View style={styles.historyNoteBox}>
+                      <Text style={styles.historyNoteText}>💬 {h.notes}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ))}
           </Card>
         )}
 
-        {/* Contact info */}
-        {(job.contactName || job.contactPhone) && (
+        {/* Contact */}
+        {(job.customerName || job.customerPhone) && (
           <Card>
-            <Text style={styles.sectionLabel}>Contact</Text>
-            {job.contactName  && <Text style={styles.meta}>👤 {job.contactName}</Text>}
-            {job.contactPhone && <Text style={styles.meta}>📞 {job.contactPhone}</Text>}
+            <Text style={styles.sectionLabel}>Customer</Text>
+            {!!job.customerName  && <Text style={styles.meta}>👤 {job.customerName}</Text>}
+            {!!job.customerPhone && <Text style={styles.meta}>📞 {job.customerPhone}</Text>}
           </Card>
         )}
 
@@ -271,40 +346,71 @@ export default function JobDetailScreen() {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
+function priorityColor(label: string) {
+  const map: Record<string, string> = {
+    Critical: '#dc2626',
+    High:     '#ea580c',
+    Medium:   '#d97706',
+    Low:      Colors.textMuted,
+  };
+  return map[label] ?? Colors.textMuted;
 }
 
 const styles = StyleSheet.create({
-  scroll:         { flex: 1, backgroundColor: Colors.background },
-  content:        { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 },
-  center:         { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  notFound:       { fontSize: FontSize.md, color: Colors.textSecondary },
+  scroll:           { flex: 1, backgroundColor: Colors.background },
+  content:          { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 40 },
+  center:           { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  notFound:         { fontSize: FontSize.md, color: Colors.textSecondary },
 
-  headerCard:     { gap: Spacing.xs },
-  headerRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  jobNumber:      { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary, fontFamily: 'monospace' },
-  customerName:   { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.text },
-  address:        { fontSize: FontSize.sm, color: Colors.textSecondary },
-  meta:           { fontSize: FontSize.sm, color: Colors.textSecondary },
+  headerCard:       { gap: Spacing.xs },
+  headerRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  jobNumber:        { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.accent, fontFamily: 'monospace' },
+  customerName:     { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.text },
+  address:          { fontSize: FontSize.sm, color: Colors.textSecondary },
+  meta:             { fontSize: FontSize.sm, color: Colors.textSecondary },
 
-  sectionLabel:   { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
-  description:    { fontSize: FontSize.base, color: Colors.text, lineHeight: 22 },
+  sectionLabel:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+  noteText:         { fontSize: FontSize.base, color: Colors.text, lineHeight: 22 },
 
-  fieldGroup:     { gap: 6, marginBottom: 12 },
-  fieldLabel:     { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.text },
-  input:          { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: FontSize.base, color: Colors.text },
-  textarea:       { minHeight: 76, paddingTop: 12 },
+  fieldGroup:       { gap: 6, marginBottom: 12 },
+  fieldLabel:       { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.text },
+  input:            { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: FontSize.base, color: Colors.text },
+  textarea:         { minHeight: 76, paddingTop: 12 },
 
-  actionRow:      { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
-  actionBtn:      { flex: 1, minWidth: '45%' },
+  actionRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  statusBtn:        {
+    backgroundColor: Colors.primaryBtn,
+    borderRadius: Radius.full,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+  },
+  statusBtnDisabled:{ opacity: 0.55 },
+  statusBtnText:    { color: '#fff', fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  showMoreBtn:      { marginTop: 8, alignItems: 'center' },
+  showMoreText:     { fontSize: FontSize.sm, color: Colors.accent },
 
-  photoRow:       { gap: 8, paddingBottom: 8 },
-  photo:          { width: 120, height: 90, borderRadius: Radius.sm, backgroundColor: Colors.border },
-  uploadingRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
-  uploadingText:  { fontSize: FontSize.sm, color: Colors.textSecondary },
-  photoActions:   { flexDirection: 'row', gap: Spacing.sm, marginTop: 4, flexWrap: 'wrap' },
-  photoBtn:       { flex: 1, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: 10, alignItems: 'center' },
-  photoBtnText:   { fontSize: FontSize.sm, color: Colors.text, fontWeight: FontWeight.medium },
+  photoRow:         { gap: 8, paddingBottom: 8 },
+  photoWrap:        { position: 'relative' },
+  photo:            { width: 120, height: 90, borderRadius: Radius.sm, backgroundColor: Colors.border },
+  downloadBtn:      { position: 'absolute', right: 4, bottom: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 3 },
+  downloadBtnText:  { color: '#fff', fontSize: 10, fontWeight: FontWeight.semibold },
+  uploadingRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  uploadingText:    { fontSize: FontSize.sm, color: Colors.textSecondary },
+  photoActions:     { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
+  photoBtn:         { flex: 1, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: 12, alignItems: 'center' },
+  photoBtnText:     { fontSize: FontSize.sm, color: Colors.text, fontWeight: FontWeight.medium },
 
-  noteText:       { fontSize: FontSize.base, color: Colors.text, lineHeight: 22 },
+  historyRow:       { flexDirection: 'row', gap: 10, paddingVertical: 6 },
+  historyDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.accent, marginTop: 5, flexShrink: 0 },
+  historyContent:   { flex: 1 },
+  historyStatus:    { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.text },
+  historyMeta:      { fontSize: FontSize.xs, color: Colors.textMuted },
+  historyNoteBox:   { marginTop: 6, backgroundColor: Colors.background, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10, paddingVertical: 8 },
+  historyNoteText:  { fontSize: FontSize.sm, color: Colors.text, lineHeight: 19 },
 });

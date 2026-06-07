@@ -1,17 +1,19 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Card } from '@/components/shared/Card';
 import { Badge, statusVariant } from '@/components/shared/Badge';
 import { Colors, FontSize, FontWeight, Spacing } from '@/constants/theme';
 
 interface RequestCardProps {
-  type:   'leave' | 'overtime';
-  item:   any;
+  type:     'leave' | 'overtime';
+  request:  any;   // renamed from item — matches usage in requests.tsx
   onCancel?: (id: string) => void;
+  cancelling?: boolean;
 }
 
-export function RequestCard({ type, item, onCancel }: RequestCardProps) {
-  const canCancel = item.status === 'Pending' && onCancel;
+export function RequestCard({ type, request: item, onCancel, cancelling }: RequestCardProps) {
+  if (!item) return null;
+  const canCancel = item.status === 'Pending' && !!onCancel;
 
   const handleCancel = () => {
     Alert.alert('Cancel Request', 'Are you sure you want to cancel this request?', [
@@ -47,8 +49,12 @@ export function RequestCard({ type, item, onCancel }: RequestCardProps) {
           Submitted {new Date(item.createdAt).toLocaleDateString('en-GB')}
         </Text>
         {canCancel && (
-          <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn}>
-            <Text style={styles.cancelText}>Cancel</Text>
+          <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn} disabled={!!cancelling}>
+            {cancelling ? (
+              <ActivityIndicator size="small" color={Colors.danger} />
+            ) : (
+              <Text style={styles.cancelText}>Cancel</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>

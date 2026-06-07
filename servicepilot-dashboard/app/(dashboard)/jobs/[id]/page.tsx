@@ -333,6 +333,11 @@ export default function JobDetailPage() {
                       {h.changedByName && `By ${h.changedByName} · `}
                       {new Date(h.changedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
                     </div>
+                    {!!h.notes && (
+                      <div className="mt-1.5 rounded-md bg-gray-50 px-2.5 py-1.5 text-[12px] text-gray-600">
+                        💬 {h.notes}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

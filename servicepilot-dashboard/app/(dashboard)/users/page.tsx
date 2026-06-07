@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 // app/(dashboard)/users/page.tsx
-// User management — list, create, reset password, deactivate
+// User management — list, create, edit, reset password, deactivate
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { useLookups } from '@/lib/hooks/useLookups';
 import apiClient from '@/lib/api/client';
 import { useTableSort, thCls, SortArrow } from '@/lib/hooks/useTableSort';
 import { useToast } from '@/components/shared/ToastProvider';
+import { ConfirmDialog, type ConfirmDialogState } from '@/components/shared/ConfirmDialog';
 
 function useUsers() {
   return useQuery({
@@ -27,18 +28,41 @@ const ROLE_CONFIG: Record<string, { cls: string }> = {
 
 const ROLES = ['Admin','HRManager','Supervisor','Dispatcher','Technician'];
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function UsersPage() {
   const qc = useQueryClient();
   const { data: users, isLoading, isError } = useUsers();
   const { data: lookups } = useLookups();
-  const { sorted: filteredUsers, search, setSearch, sortKey, sortDir, toggleSort } = useTableSort(users ?? [], 'fullName');
+
+  // No default sort key — no column is pre-selected, list shows in server order
+  const { sorted: filteredUsers, search, setSearch, sortKey, sortDir, toggleSort } = useTableSort(users ?? [], '');
 
   const { showToast } = useToast();
+
+  // ── Confirm dialog for deactivate ──────────────────────────────────────────
+  const [deactivateDialog, setDeactivateDialog] = useState<ConfirmDialogState | null>(null);
+
+  // ── Create modal ───────────────────────────────────────────────────────────
   const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    fullName: '', email: '', phoneNumber: '', role: 'Technician',
+    branchId: '', password: '', confirmPassword: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ── Edit modal ─────────────────────────────────────────────────────────────
+  const [editUser, setEditUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    fullName: '', phoneNumber: '', role: 'Technician', branchId: '', isActive: true,
+  });
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
+  // ── Reset password modal ───────────────────────────────────────────────────
   const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
-  const [form, setForm] = useState({ fullName: '', email: '', phoneNumber: '', role: 'Technician', branchId: '', password: '' });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
 
   const createUser = useMutation({
     mutationFn: (dto: any) => apiClient.post('/users', dto).then(r => r.data),
@@ -46,13 +70,36 @@ export default function UsersPage() {
       if (res.success) {
         qc.invalidateQueries({ queryKey: ['users'] });
         setShowCreate(false);
-        setForm({ fullName: '', email: '', phoneNumber: '', role: 'Technician', branchId: '', password: '' });
+        setForm({ fullName: '', email: '', phoneNumber: '', role: 'Technician', branchId: '', password: '', confirmPassword: '' });
+        setErrors({});
         showToast('User created successfully', 'success');
       } else {
         showToast(res.message || 'Failed to create user', 'error');
       }
     },
-    onError: (err: any) => showToast(err?.message || 'Failed to create user', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to create user';
+      showToast(msg, 'error');
+    },
+  });
+
+  const updateUser = useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: any }) =>
+      apiClient.put(`/users/${id}`, dto).then(r => r.data),
+    onSuccess: (res) => {
+      if (res.success) {
+        qc.invalidateQueries({ queryKey: ['users'] });
+        setEditUser(null);
+        setEditErrors({});
+        showToast('User updated successfully', 'success');
+      } else {
+        showToast(res.message || 'Failed to update user', 'error');
+      }
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to update user';
+      showToast(msg, 'error');
+    },
   });
 
   const deactivateUser = useMutation({
@@ -79,19 +126,97 @@ export default function UsersPage() {
     onError: (err: any) => showToast(err?.message || 'Failed to reset password', 'error'),
   });
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
   const handleCreate = () => {
     const errs: Record<string, string> = {};
-    if (!form.fullName.trim()) errs.fullName = 'Required';
-    if (!form.email.trim()) errs.email = 'Required';
-    if (!form.password || form.password.length < 8) errs.password = 'Min 8 characters';
-    if (['Supervisor','Technician'].includes(form.role) && !form.branchId) errs.branchId = 'Required for this role';
+    if (!form.fullName.trim()) errs.fullName = 'Full name is required';
+    if (!form.email.trim()) {
+      errs.email = 'Email is required';
+    } else if (!EMAIL_RE.test(form.email.trim())) {
+      errs.email = 'Enter a valid email address';
+    }
+    if (!form.password) {
+      errs.password = 'Password is required';
+    } else if (form.password.length < 8) {
+      errs.password = 'Password must be at least 8 characters';
+    }
+    if (form.password && form.confirmPassword !== form.password) {
+      errs.confirmPassword = 'Passwords do not match';
+    }
+    if (['Supervisor','Technician'].includes(form.role) && !form.branchId) {
+      errs.branchId = 'Branch is required for this role';
+    }
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    createUser.mutate({ ...form, branchId: form.branchId || undefined, phoneNumber: form.phoneNumber || undefined });
+    createUser.mutate({
+      fullName: form.fullName.trim(),
+      email: form.email.trim(),
+      phoneNumber: form.phoneNumber.trim() || undefined,
+      role: form.role,
+      branchId: form.branchId || undefined,
+      password: form.password,
+    });
   };
+
+  const handleOpenEdit = (u: any) => {
+    setEditForm({
+      fullName: u.fullName || '',
+      phoneNumber: u.phoneNumber || '',
+      role: u.role || 'Technician',
+      branchId: u.branchId || '',
+      isActive: u.isActive ?? true,
+    });
+    setEditErrors({});
+    setEditUser(u);
+  };
+
+  const handleUpdate = () => {
+    const errs: Record<string, string> = {};
+    if (!editForm.fullName.trim()) errs.fullName = 'Full name is required';
+    if (['Supervisor','Technician'].includes(editForm.role) && !editForm.branchId) {
+      errs.branchId = 'Branch is required for this role';
+    }
+    setEditErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    updateUser.mutate({
+      id: editUser.id,
+      dto: {
+        fullName: editForm.fullName.trim(),
+        phoneNumber: editForm.phoneNumber.trim() || undefined,
+        role: editForm.role,
+        branchId: editForm.branchId || undefined,
+        isActive: editForm.isActive,
+      },
+    });
+  };
+
+  const handleDeactivateClick = (u: any) => {
+    setDeactivateDialog({
+      title: 'Deactivate User',
+      message: `Are you sure you want to deactivate ${u.fullName}? They will lose access to the system immediately. This action can be reversed by editing the user.`,
+      confirmLabel: 'Deactivate',
+      confirmCls: 'bg-red-600 hover:bg-red-700',
+      onConfirm: () => {
+        deactivateUser.mutate(u.id, {
+          onSuccess: () => setDeactivateDialog(null),
+          onError: () => setDeactivateDialog(null),
+        });
+      },
+    });
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div>
+      {/* App-theme confirm dialog for deactivation */}
+      <ConfirmDialog
+        state={deactivateDialog}
+        onClose={() => setDeactivateDialog(null)}
+        isLoading={deactivateUser.isPending}
+      />
+
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-[22px] font-bold tracking-tight text-gray-900">Users</h1>
@@ -108,6 +233,7 @@ export default function UsersPage() {
           Failed to load users. Check your connection and try refreshing the page.
         </div>
       )}
+
       {/* Search bar */}
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 flex-1 max-w-sm items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5">
@@ -182,10 +308,14 @@ export default function UsersPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleOpenEdit(u)} className="rounded-md px-2.5 py-1 text-[12px] font-medium text-gray-600 hover:bg-gray-100 transition-colors">Edit</button>
                         <button onClick={() => setResetUserId(u.id)} className="rounded-md px-2.5 py-1 text-[12px] font-medium text-blue-600 hover:bg-blue-50 transition-colors">Reset PWD</button>
                         {u.isActive && (
-                          <button onClick={() => confirm(`Deactivate ${u.fullName}?`) && deactivateUser.mutate(u.id)}
-                            className="rounded-md px-2.5 py-1 text-[12px] font-medium text-red-500 hover:bg-red-50 transition-colors">Deactivate</button>
+                          <button
+                            onClick={() => handleDeactivateClick(u)}
+                            className="rounded-md px-2.5 py-1 text-[12px] font-medium text-red-500 hover:bg-red-50 transition-colors">
+                            Deactivate
+                          </button>
                         )}
                       </div>
                     </td>
@@ -200,19 +330,19 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* Create user modal */}
+      {/* ── Create user modal ── */}
       {showCreate && (
-        <Modal title="Add New User" onClose={() => setShowCreate(false)}>
+        <Modal title="Add New User" onClose={() => { setShowCreate(false); setErrors({}); }}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Full Name *" error={errors.fullName}>
-                <input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Ahmed Mohammed" className={inp(!!errors.fullName)}/>
+                <input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Ahmed Mohammed" className={inp(!!errors.fullName)} autoComplete="off"/>
               </Field>
               <Field label="Email *" error={errors.email}>
-                <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="ahmed@company.ae" className={inp(!!errors.email)}/>
+                <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="ahmed@company.ae" className={inp(!!errors.email)} autoComplete="off"/>
               </Field>
               <Field label="Phone">
-                <input value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(false)}/>
+                <input type="tel" value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(false)} autoComplete="tel"/>
               </Field>
               <Field label="Role">
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inp(false)}>
@@ -228,12 +358,17 @@ export default function UsersPage() {
                 </Field>
               )}
               <Field label="Password *" error={errors.password}>
-                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" className={inp(!!errors.password)}/>
+                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" className={inp(!!errors.password)} autoComplete="new-password"/>
+              </Field>
+              <Field label="Confirm Password *" error={errors.confirmPassword}>
+                <input type="password" value={form.confirmPassword} onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))} placeholder="Repeat password" className={inp(!!errors.confirmPassword)} autoComplete="new-password"/>
               </Field>
             </div>
-            {createUser.isError && <p className="text-[12px] text-red-600">Failed to create user. Please try again.</p>}
+            {createUser.isError && (
+              <p className="text-[12px] text-red-600">Failed to create user. Please try again.</p>
+            )}
             <div className="flex justify-end gap-2.5 pt-2">
-              <button onClick={() => setShowCreate(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { setShowCreate(false); setErrors({}); }} className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] text-gray-600 hover:bg-gray-50">Cancel</button>
               <button onClick={handleCreate} disabled={createUser.isPending} className="flex items-center gap-2 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70">
                 {createUser.isPending && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
                 Create User
@@ -243,12 +378,62 @@ export default function UsersPage() {
         </Modal>
       )}
 
-      {/* Reset password modal */}
+      {/* ── Edit user modal ── */}
+      {editUser && (
+        <Modal title="Edit User" onClose={() => { setEditUser(null); setEditErrors({}); }}>
+          <div className="space-y-4">
+            {/* Email is read-only — it's the login identifier */}
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3.5 py-2.5">
+              <div className="text-[11px] font-medium text-gray-400 mb-0.5">Login Email (cannot be changed)</div>
+              <div className="text-[13px] font-medium text-gray-700">{editUser.email}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Full Name *" error={editErrors.fullName}>
+                <input value={editForm.fullName} onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Ahmed Mohammed" className={inp(!!editErrors.fullName)} autoComplete="off"/>
+              </Field>
+              <Field label="Phone">
+                <input type="tel" value={editForm.phoneNumber} onChange={e => setEditForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(false)} autoComplete="tel"/>
+              </Field>
+              <Field label="Role">
+                <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} className={inp(false)}>
+                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Field>
+              {['Supervisor','Technician'].includes(editForm.role) && (
+                <Field label="Branch *" error={editErrors.branchId}>
+                  <select value={editForm.branchId} onChange={e => setEditForm(f => ({ ...f, branchId: e.target.value }))} className={inp(!!editErrors.branchId)}>
+                    <option value="">Select branch...</option>
+                    {(lookups?.branches || []).map((b: any) => <option key={b.id} value={b.id}>{b.label}</option>)}
+                  </select>
+                </Field>
+              )}
+              <div className="flex items-center gap-2 col-span-1 pt-5">
+                <input type="checkbox" id="editIsActive" checked={editForm.isActive}
+                  onChange={e => setEditForm(f => ({ ...f, isActive: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
+                <label htmlFor="editIsActive" className="text-[13px] font-medium text-gray-700">Account active</label>
+              </div>
+            </div>
+            {updateUser.isError && (
+              <p className="text-[12px] text-red-600">Failed to update user. Please try again.</p>
+            )}
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button onClick={() => { setEditUser(null); setEditErrors({}); }} className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleUpdate} disabled={updateUser.isPending} className="flex items-center gap-2 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-white hover:bg-btn-hover disabled:opacity-70">
+                {updateUser.isPending && <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Reset password modal ── */}
       {resetUserId && (
         <Modal title="Reset Password" onClose={() => { setResetUserId(null); setNewPassword(''); }}>
           <div className="space-y-4">
             <Field label="New Password">
-              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" className={inp(false)}/>
+              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" className={inp(false)} autoComplete="new-password"/>
             </Field>
             <div className="flex justify-end gap-2.5">
               <button onClick={() => setResetUserId(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-[13px] text-gray-600 hover:bg-gray-50">Cancel</button>
@@ -266,7 +451,7 @@ export default function UsersPage() {
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="text-[16px] font-semibold text-gray-900">{title}</h3>

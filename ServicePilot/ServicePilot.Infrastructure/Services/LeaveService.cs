@@ -57,6 +57,16 @@ namespace ServicePilot.Infrastructure.Services
                 return Fail<LeaveRequestResponseDto>(
                     "Invalid or inactive leave type.");
 
+            // Past-date check — employees cannot backdate; Admin/Supervisor/HRManager can.
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (dto.StartDate < today &&
+                !_authorization.IsAdmin() &&
+                !_authorization.IsHRManager() &&
+                !_authorization.IsSupervisor())
+            {
+                return Fail<LeaveRequestResponseDto>("Start date cannot be in the past.");
+            }
+
             // Check for overlapping leave requests
             var hasOverlap = await _repository.HasOverlappingLeaveAsync(
                 employee.Id, _currentUser.CompanyId,
@@ -260,8 +270,18 @@ namespace ServicePilot.Infrastructure.Services
                     type: "leave");
             }
 
-            var updated = await _repository.GetByIdAsync(request.Id, _currentUser.CompanyId);
-            return Ok(MapToDto(updated!));
+            // Post-save fetch — defensive so a transient query failure never
+            // hides a successful approve/reject.
+            // request already has Employee and LeaveType loaded (from GetByIdAsync at the top).
+            try
+            {
+                var updated = await _repository.GetByIdAsync(request.Id, _currentUser.CompanyId);
+                return Ok(MapToDto(updated!));
+            }
+            catch
+            {
+                return Ok(MapToDto(request));
+            }
         }
 
         // ════════════════════════════════════════════════════════════════

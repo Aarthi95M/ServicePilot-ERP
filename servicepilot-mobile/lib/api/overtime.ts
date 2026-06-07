@@ -7,8 +7,8 @@ export interface CreateOvertimePayload {
 }
 
 export const overtimeApi = {
-  getMyRequests: (params?: { page?: number; status?: string }) =>
-    apiClient.get('/overtime/my-requests', { params }).then(r => r.data.data),
+  getMyRequests: (params?: { page?: number; pageSize?: number; status?: string }) =>
+    apiClient.get('/overtime/my-requests', { params }).then(r => r.data.data ?? r.data),
 
   create: (payload: CreateOvertimePayload) =>
     apiClient.post('/overtime', payload).then(r => r.data),

@@ -27,7 +27,7 @@ export function ConfirmDialog({ state, onClose, isLoading }: Props) {
   return (
     // Backdrop — clicking outside closes dialog
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">

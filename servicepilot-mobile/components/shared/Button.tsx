@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   fullWidth:  { width: '100%' },
   disabled:   { opacity: 0.6 },
 
-  primary:    { backgroundColor: Colors.primary },
+  primary:    { backgroundColor: Colors.primaryBtn },
   secondary:  { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
   danger:     { backgroundColor: Colors.danger },
   ghost:      { backgroundColor: 'transparent' },
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   label_primary:  { color: '#fff' },
   label_secondary:{ color: Colors.text },
   label_danger:   { color: '#fff' },
-  label_ghost:    { color: Colors.primary },
+  label_ghost:    { color: Colors.accent },
 
   labelSize_sm:   { fontSize: FontSize.sm },
   labelSize_md:   { fontSize: FontSize.base },

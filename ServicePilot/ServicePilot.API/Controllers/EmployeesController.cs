@@ -106,5 +106,29 @@ namespace ServicePilot.API.Controllers
             var response = await _service.DeleteAsync(id);
             return response.Success ? Ok(response) : NotFound(response);
         }
+
+        /// <summary>
+        /// One-shot shortcut: creates an Employee record AND a linked
+        /// Technician OR Supervisor user account (mobile login) in a single
+        /// atomic transaction. Avoids the two-step "create employee then
+        /// create user" workflow for field staff. These are the only two
+        /// roles that need both an Employee profile and mobile app access —
+        /// Admin/HRManager/Dispatcher don't need Employee profiles and are
+        /// created directly via User Management.
+        /// Only Admin and HR Manager can use this endpoint.
+        /// </summary>
+        [HttpPost("create-technician")]
+        [Authorize(Roles = Roles.HRAccess)]            // Admin,HRManager
+        public async Task<IActionResult> CreateTechnician(
+            [FromBody] CreateTechnicianDto dto)
+        {
+            var response = await _service.CreateTechnicianAsync(dto);
+            return response.Success
+                ? CreatedAtAction(
+                    nameof(GetById),
+                    new { id = response.Data!.EmployeeId },
+                    response)
+                : BadRequest(response);
+        }
     }
 }

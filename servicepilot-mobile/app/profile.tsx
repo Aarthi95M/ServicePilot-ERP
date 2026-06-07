@@ -167,7 +167,7 @@ export default function ProfileScreen() {
             {profile && (
               <Card>
                 <Text style={styles.sectionLabel}>Employee Details</Text>
-                <InfoRow icon="🪪" label="Employee ID"  value={profile.employeeId ?? profile.id ? String(profile.id) : null} />
+                <InfoRow icon="🪪" label="Employee Code" value={profile.employeeCode ?? null} />
                 <InfoRow icon="📞" label="Phone"        value={profile.phone ?? profile.phoneNumber} />
                 <InfoRow icon="🏗️" label="Department"   value={profile.departmentName ?? profile.department} />
                 <InfoRow icon="💼" label="Position"     value={profile.position ?? profile.jobTitle} />

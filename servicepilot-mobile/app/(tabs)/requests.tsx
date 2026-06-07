@@ -1,37 +1,27 @@
-// app/(tabs)/requests.tsx — Leave & Overtime requests with submission forms
+// app/(tabs)/requests.tsx — Leave & Overtime requests with submission forms + offline support
 
 import { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Modal, Alert, RefreshControl, Platform
+  TextInput, Modal, Alert, RefreshControl
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leaveApi } from '@/lib/api/leave';
 import { overtimeApi } from '@/lib/api/overtime';
+import { enqueueAction } from '@/lib/offlineQueue';
 import { RequestCard } from '@/components/screens/RequestCard';
 import { Button } from '@/components/shared/Button';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { DatePicker } from '@/components/shared/DatePicker';
 import { Colors, Spacing, FontSize, FontWeight, Radius } from '@/constants/theme';
 
 type Tab = 'leave' | 'overtime';
 
-// ── Date picker (simple inline) ──────────────────────────────────────────────
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <View style={styles.fieldGroup}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChange}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={Colors.textMuted}
-        keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
-        maxLength={10}
-      />
-    </View>
-  );
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ── Leave form modal ─────────────────────────────────────────────────────────
@@ -40,7 +30,10 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
   const [startDate, setStart] = useState('');
   const [endDate,   setEnd]   = useState('');
   const [reason,    setReason] = useState('');
-  const [typeId,    setTypeId] = useState<number | null>(null);
+  // Leave type IDs are GUIDs (LeaveTypeDropdownDto.id : Guid → string in JSON),
+  // not numbers — this was mistyped as `number | null`, which silently mismatched
+  // CreateLeavePayload.leaveTypeId: string at the API boundary.
+  const [typeId,    setTypeId] = useState<string | null>(null);
 
   const { data: types = [] } = useQuery({
     queryKey: ['leave-types'],
@@ -61,12 +54,23 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
 
   const reset = () => { setStart(''); setEnd(''); setReason(''); setTypeId(null); };
 
-  const submit = () => {
-    if (!typeId)     { Alert.alert('Validation', 'Please select a leave type.'); return; }
-    if (!startDate)  { Alert.alert('Validation', 'Please enter a start date (YYYY-MM-DD).'); return; }
-    if (!endDate)    { Alert.alert('Validation', 'Please enter an end date (YYYY-MM-DD).'); return; }
+  const submit = async () => {
+    if (!typeId)        { Alert.alert('Validation', 'Please select a leave type.'); return; }
+    if (!startDate)     { Alert.alert('Validation', 'Please enter a start date (YYYY-MM-DD).'); return; }
+    if (!endDate)       { Alert.alert('Validation', 'Please enter an end date (YYYY-MM-DD).'); return; }
     if (!reason.trim()) { Alert.alert('Validation', 'Please provide a reason.'); return; }
-    mutate({ leaveTypeId: typeId, startDate, endDate, reason: reason.trim() });
+
+    const payload = { leaveTypeId: typeId, startDate, endDate, reason: reason.trim() };
+    const net = await NetInfo.fetch();
+
+    if (!net.isConnected) {
+      await enqueueAction({ type: 'leave', payload, timestamp: new Date().toISOString() });
+      Alert.alert('📴 Saved Offline', 'Your leave request has been saved and will submit automatically when connected.');
+      reset(); onClose();
+      return;
+    }
+
+    mutate(payload);
   };
 
   return (
@@ -78,7 +82,9 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
         </View>
 
         <ScrollView contentContainerStyle={styles.modalBody}>
-          {/* Leave type */}
+          {/* Leave type — API returns { id, label, maxDaysPerYear, isPaid } (LeaveTypeDropdownDto).
+              Rendering t.name (which doesn't exist on the DTO) printed an empty
+              string, collapsing each pill into a bare circle with no visible label. */}
           <Text style={styles.fieldLabel}>Leave Type</Text>
           <View style={styles.typeRow}>
             {(types as any[]).map((t) => (
@@ -87,18 +93,18 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
                 style={[styles.typePill, typeId === t.id && styles.typePillActive]}
                 onPress={() => setTypeId(t.id)}
               >
-                <Text style={[styles.typePillText, typeId === t.id && styles.typePillTextActive]}>{t.name}</Text>
+                <Text style={[styles.typePillText, typeId === t.id && styles.typePillTextActive]}>
+                  {t.label ?? t.name ?? 'Leave'}
+                </Text>
               </TouchableOpacity>
             ))}
             {types.length === 0 && (
-              <TouchableOpacity style={[styles.typePill, typeId === 1 && styles.typePillActive]} onPress={() => setTypeId(1)}>
-                <Text style={[styles.typePillText, typeId === 1 && styles.typePillTextActive]}>Annual</Text>
-              </TouchableOpacity>
+              <Text style={styles.fieldHint}>No leave types configured for your company yet.</Text>
             )}
           </View>
 
-          <DateField label="Start Date" value={startDate} onChange={setStart} />
-          <DateField label="End Date"   value={endDate}   onChange={setEnd} />
+          <DatePicker label="Start Date" value={startDate} onChange={setStart} maxDate={endDate || undefined} placeholder="Select start date" />
+          <DatePicker label="End Date"   value={endDate}   onChange={setEnd}   minDate={startDate || undefined} placeholder="Select end date" />
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Reason</Text>
@@ -140,12 +146,23 @@ function OvertimeModal({ visible, onClose }: { visible: boolean; onClose: () => 
     onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Something went wrong.'),
   });
 
-  const submit = () => {
-    if (!date)   { Alert.alert('Validation', 'Please enter the date (YYYY-MM-DD).'); return; }
+  const submit = async () => {
+    if (!date)          { Alert.alert('Validation', 'Please enter the date (YYYY-MM-DD).'); return; }
     const h = parseFloat(hours);
     if (isNaN(h) || h <= 0 || h > 24) { Alert.alert('Validation', 'Please enter valid hours (0–24).'); return; }
     if (!reason.trim()) { Alert.alert('Validation', 'Please provide a reason.'); return; }
-    mutate({ requestDate: date, hoursRequested: h, reason: reason.trim() });
+
+    const payload = { requestDate: date, hoursRequested: h, reason: reason.trim() };
+    const net = await NetInfo.fetch();
+
+    if (!net.isConnected) {
+      await enqueueAction({ type: 'overtime', payload, timestamp: new Date().toISOString() });
+      Alert.alert('📴 Saved Offline', 'Your overtime request has been saved and will submit automatically when connected.');
+      setDate(''); setHours(''); setReason(''); onClose();
+      return;
+    }
+
+    mutate(payload);
   };
 
   return (
@@ -157,7 +174,7 @@ function OvertimeModal({ visible, onClose }: { visible: boolean; onClose: () => 
         </View>
 
         <ScrollView contentContainerStyle={styles.modalBody}>
-          <DateField label="Date" value={date} onChange={setDate} />
+          <DatePicker label="Date" value={date} onChange={setDate} maxDate={todayISO()} placeholder="Select the date overtime was worked" />
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Hours Worked</Text>
@@ -223,6 +240,26 @@ export default function RequestsScreen() {
     qc.invalidateQueries({ queryKey: ['overtime-requests'] });
   };
 
+  // ── Cancel request ──────────────────────────────────────────────────────
+  // Previously this just invalidated the query cache without ever calling the
+  // cancel endpoint, so the request stayed "Pending" on the server and the
+  // card reappeared after refetch — making "Cancel" look broken/no-op.
+  // Now it actually calls leaveApi.cancel / overtimeApi.cancel and only
+  // refetches once the server confirms the cancellation.
+  const { mutate: cancelRequest, isPending: isCancelling } = useMutation({
+    mutationFn: (vars: { id: string; kind: Tab }) =>
+      vars.kind === 'leave' ? leaveApi.cancel(vars.id) : overtimeApi.cancel(vars.id),
+    onSuccess: (res, vars) => {
+      if (!res?.success) {
+        Alert.alert('Error', res?.message || 'Could not cancel the request.');
+        return;
+      }
+      qc.invalidateQueries({ queryKey: [vars.kind === 'leave' ? 'leave-requests' : 'overtime-requests'] });
+    },
+    onError: (e: any) =>
+      Alert.alert('Error', e?.response?.data?.message ?? 'Something went wrong while cancelling the request.'),
+  });
+
   return (
     <View style={styles.wrapper}>
       {/* Tab row + add button */}
@@ -270,9 +307,8 @@ export default function RequestsScreen() {
               key={item.id}
               request={item}
               type={tab}
-              onCancel={() => {
-                qc.invalidateQueries({ queryKey: [tab === 'leave' ? 'leave-requests' : 'overtime-requests'] });
-              }}
+              onCancel={(id) => cancelRequest({ id, kind: tab })}
+              cancelling={isCancelling}
             />
           ))
         )}
@@ -309,6 +345,7 @@ const styles = StyleSheet.create({
 
   fieldGroup:       { gap: 6 },
   fieldLabel:       { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.text },
+  fieldHint:        { fontSize: FontSize.sm, color: Colors.textMuted, fontStyle: 'italic' },
   input:            { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: FontSize.base, color: Colors.text },
   textarea:         { minHeight: 80, paddingTop: 12 },
 

@@ -1066,3 +1066,25 @@ CREATE INDEX IF NOT EXISTS idx_prt_user_used
 
 ALTER TABLE employees 
 ADD COLUMN IF NOT EXISTS basic_salary NUMERIC(12,2) NULL;
+
+
+-- =====================================================================
+-- Migration: AddNotesToJobStatusHistory  (2026-06-07)
+-- Adds a "notes" column so comments entered during a job status change
+-- are persisted and can be shown in the status timeline (web + mobile)
+-- =====================================================================
+
+BEGIN;
+
+-- 1. Add the new nullable text column
+ALTER TABLE job_status_history
+    ADD COLUMN IF NOT EXISTS notes text NULL;
+
+-- 2. Register this migration in EF Core's history table so that
+--    `dotnet ef database update` recognizes it as already applied
+--    and doesn't try to run it again (avoids a "column already exists" error)
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+VALUES ('20260607000000_AddNotesToJobStatusHistory', '8.0.4')
+ON CONFLICT ("MigrationId") DO NOTHING;
+
+COMMIT;
