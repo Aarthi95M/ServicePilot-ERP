@@ -38,6 +38,14 @@ namespace ServicePilot.Application.Validators
                 .MaximumLength(1000)
                 .WithMessage("Reason must not exceed 1000 characters.")
                 .When(x => !string.IsNullOrWhiteSpace(x.Reason));
+
+            // EmployeeId is nullable — only validated when supplied (Admin/Supervisor/
+            // HR Manager filing leave on behalf of an employee). Role + branch checks
+            // for "who can use this" live in the service layer, not here.
+            RuleFor(x => x.EmployeeId)
+                .NotEqual(Guid.Empty)
+                .WithMessage("A valid employee must be selected.")
+                .When(x => x.EmployeeId.HasValue);
         }
     }
 }

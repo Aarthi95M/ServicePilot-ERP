@@ -30,16 +30,39 @@ import apiClient from '@/lib/api/client';
 import { useToast } from '@/components/shared/ToastProvider';
 import { LeafletMap } from '@/components/shared/LeafletMap';
 import type { MapMarker } from '@/components/shared/LeafletMap';
+import { ConfirmDialog, type ConfirmDialogState } from '@/components/shared/ConfirmDialog';
+
+// Roles useDashboard() actually has a backing endpoint for
+// (admin-dashboard for Admin/HRManager, supervisor-dashboard for Supervisor).
+// Dispatcher and web-Technician fall outside this — there's no
+// /dashboard/dispatcher endpoint (Dispatchers have no Employee profile,
+// so even /dashboard/me can't serve them), and Technician is mobile-only.
+// useDashboard() simply leaves its query `enabled: false` for these roles,
+// which previously left the page rendering an empty body underneath an
+// unconditionally-shown "Export Report" button — exactly the bug reported
+// ("only export button is available without dashboard"). We now show a
+// dedicated placeholder for these roles instead of relying on `data`.
+const DASHBOARD_DATA_ROLES = ['Admin', 'HRManager', 'Supervisor'] as const;
+// Roles that actually have report access (mirrors the "Reports" nav item
+// visibility in layout.tsx and ReportsController authorization) — the
+// Export Report button should only appear for these.
+const REPORT_ACCESS_ROLES = ['Admin', 'HRManager'] as const;
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
+  const { user, hasRole } = useAuthStore();
   const router = useRouter();
+
+  const hasDashboardData = hasRole([...DASHBOARD_DATA_ROLES]);
+  const canExportReports = hasRole([...REPORT_ACCESS_ROLES]);
 
   // useDashboard() automatically picks admin or supervisor
   // endpoint based on the logged-in user's role
   const { data, isLoading, error, refetch } = useDashboard();
   const qc = useQueryClient();
   const { showToast } = useToast();
+
+  // Custom in-app confirmation dialog state — replaces browser confirm() popups
+  const [dialog, setDialog] = useState<ConfirmDialogState | null>(null);
 
   // Approve / Reject pending requests from the dashboard panel
   const approveReject = useMutation({
@@ -49,6 +72,7 @@ export default function DashboardPage() {
     },
     onSuccess: (res, variables) => {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setDialog(null);
       if (res.success) {
         showToast(
           variables.action === 'Approved'
@@ -60,8 +84,25 @@ export default function DashboardPage() {
         showToast(res.message || 'Action failed', 'error');
       }
     },
-    onError: (err: any) => showToast(err?.message || 'Action failed', 'error'),
+    onError: (err: any) => {
+      setDialog(null);
+      showToast(err?.message || 'Action failed', 'error');
+    },
   });
+
+  // Opens the custom confirmation dialog before approving/rejecting — no browser confirm()
+  const confirmApproveReject = (req: { id: string; type: string; employeeName: string }, action: 'Approved' | 'Rejected') => {
+    const isApprove = action === 'Approved';
+    setDialog({
+      title: isApprove ? `Approve ${req.type} Request` : `Reject ${req.type} Request`,
+      message: isApprove
+        ? `Are you sure you want to approve this ${req.type.toLowerCase()} request for ${req.employeeName}? This action will notify the employee.`
+        : `Are you sure you want to reject this ${req.type.toLowerCase()} request for ${req.employeeName}?`,
+      confirmLabel: isApprove ? 'Approve' : 'Reject',
+      confirmCls: isApprove ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700',
+      onConfirm: () => approveReject.mutate({ id: req.id, type: req.type, action }),
+    });
+  };
 
 //   const dateStr = new Intl.DateTimeFormat('en-US', {
 //     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -88,6 +129,8 @@ useEffect(() => {
 
   return (
     <div>
+      {/* Custom confirm dialog — replaces browser confirm() for approve/reject actions */}
+      <ConfirmDialog state={dialog} onClose={() => setDialog(null)} isLoading={approveReject.isPending} />
 
       {/* Page header */}
       <div className="mb-6 flex items-start justify-between">
@@ -96,20 +139,55 @@ useEffect(() => {
           <p className="mt-0.5 text-[13px] text-gray-500">{dateStr}</p>
         </div>
         <div className="flex items-center gap-2.5">
-          <button onClick={() => router.push('/reports')} className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 text-[13px] font-medium text-gray-700 transition-colors hover:bg-gray-50">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export Report
-          </button>
+          {/* Dispatcher (and other roles without report access) shouldn't see
+              this — they get a 403 from every /reports endpoint. Gated to
+              match the "Reports" nav item visibility (Admin/HRManager only). */}
+          {canExportReports && (
+            <button onClick={() => router.push('/reports')} className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 text-[13px] font-medium text-gray-700 transition-colors hover:bg-gray-50">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export Report
+            </button>
+          )}
         </div>
       </div>
 
+      {/* ── NO DASHBOARD DATA FOR THIS ROLE ── */}
+      {/* Dispatcher has no backing dashboard endpoint (no Employee profile,
+          so even /dashboard/me can't serve them) and Technician is mobile-only.
+          useDashboard() leaves its query disabled for these roles, so `data`
+          stays undefined forever — show a helpful placeholder instead of an
+          empty page (or, previously, a lone "Export Report" button). */}
+      {!hasDashboardData && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-8 py-16 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
+              <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>
+              <rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+            </svg>
+          </div>
+          <h2 className="text-[15px] font-semibold text-gray-800">No dashboard summary for your role</h2>
+          <p className="mt-1 max-w-sm text-[13px] text-gray-500">
+            {user?.role === 'Dispatcher'
+              ? "Dispatchers don't have a summary dashboard. Head to Jobs to see what's scheduled and assign work to technicians."
+              : "A summary dashboard isn't available on the web for your role. Use the ServicePilot mobile app to check in, view your jobs, and submit requests."}
+          </p>
+          {user?.role === 'Dispatcher' && (
+            <button onClick={() => router.push('/jobs')}
+              className="mt-4 flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-medium text-white transition-colors hover:opacity-90">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+              Go to Jobs
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── ERROR STATE ── */}
       {/* Shows if the API call failed (network error, 401, 500 etc.) */}
-      {error && (
+      {hasDashboardData && error && (
         <div className="mb-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
             <circle cx="12" cy="12" r="10"/>
@@ -334,13 +412,13 @@ useEffect(() => {
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button
                         disabled={approveReject.isPending}
-                        onClick={() => approveReject.mutate({ id: req.id, type: req.type, action: 'Approved' })}
+                        onClick={() => confirmApproveReject(req, 'Approved')}
                         className="rounded-md bg-green-50 px-2.5 py-1 text-[11px] font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50">
                         Approve
                       </button>
                       <button
                         disabled={approveReject.isPending}
-                        onClick={() => approveReject.mutate({ id: req.id, type: req.type, action: 'Rejected' })}
+                        onClick={() => confirmApproveReject(req, 'Rejected')}
                         className="rounded-md bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50">
                         Reject
                       </button>

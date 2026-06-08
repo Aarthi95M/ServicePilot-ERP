@@ -140,6 +140,11 @@ namespace ServicePilot.Infrastructure.Services
         public async Task<ApiResponse<PagedResult<OvertimeRequestResponseDto>>> GetPagedAsync(
             PagedOvertimeRequest filter)
         {
+            // Supervisor locked to their branch employees, and their OWN
+            // requests are excluded from their approval queue — a supervisor's
+            // overtime must be approved by Admin/HR, never by the supervisor
+            // themselves, so it shouldn't even appear in their queue.
+            Guid? excludeEmployeeId = null;
             if (_authorization.IsSupervisor())
             {
                 var branchEmployeeIds = await _context.Employees
@@ -152,9 +157,13 @@ namespace ServicePilot.Infrastructure.Services
                 if (filter.EmployeeId.HasValue &&
                     !branchEmployeeIds.Contains(filter.EmployeeId.Value))
                     return Fail<PagedResult<OvertimeRequestResponseDto>>("Access denied.");
+
+                var supervisorEmployee = await GetEmployeeForCurrentUserAsync();
+                if (supervisorEmployee != null)
+                    excludeEmployeeId = supervisorEmployee.Id;
             }
 
-            var result = await _repository.GetPagedAsync(_currentUser.CompanyId, filter);
+            var result = await _repository.GetPagedAsync(_currentUser.CompanyId, filter, excludeEmployeeId);
 
             return Ok(new PagedResult<OvertimeRequestResponseDto>
             {
@@ -197,8 +206,18 @@ namespace ServicePilot.Infrastructure.Services
                 return Fail<OvertimeRequestResponseDto>(
                     $"Cannot action a request that is already {request.Status}.");
 
+            // Supervisor can only approve/reject their branch employees —
+            // and may NEVER approve/reject their own request (must go to
+            // Admin / HR Manager instead). Self-check first: a supervisor
+            // is technically "in their own branch", so the branch check
+            // alone would otherwise let them self-approve.
             if (_authorization.IsSupervisor())
             {
+                var supervisorEmployee = await GetEmployeeForCurrentUserAsync();
+                if (supervisorEmployee != null && request.EmployeeId == supervisorEmployee.Id)
+                    return Fail<OvertimeRequestResponseDto>(
+                        "You cannot approve or reject your own overtime request. This requires Admin or HR Manager approval.");
+
                 var inBranch = await _context.Employees.AnyAsync(x =>
                     x.Id == request.EmployeeId &&
                     x.BranchId == _currentUser.BranchId);

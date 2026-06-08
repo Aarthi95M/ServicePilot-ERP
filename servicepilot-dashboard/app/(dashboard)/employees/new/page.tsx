@@ -90,6 +90,19 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
       if (!form.fullName.trim()) errs.fullName = 'Full name is required.';
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
         errs.email = 'Invalid email address.';
+      // Phone format was previously unvalidated here — bring it in line with
+      // the other technician-creation forms (CreateTechnicianModal) and the
+      // backend's CreateEmployeeDtoValidator phone regex.
+      if (form.phoneNumber.trim()) {
+        const phone = form.phoneNumber.trim();
+        if (!/^[+\d\s\-().]{7,20}$/.test(phone)) {
+          errs.phoneNumber = 'Phone must contain only numbers, +, spaces, dashes, or parentheses.';
+        } else if (form.email.trim() && phone.toLowerCase() === form.email.trim().toLowerCase()) {
+          // Defends against the phone field accidentally ending up with the
+          // email address as its value (e.g. browser autofill cross-contamination).
+          errs.phoneNumber = 'Phone number cannot be the same as the email address.';
+        }
+      }
     }
     if (step === 2) {
       if (!form.branchId) errs.branchId = 'Please select a branch.';
@@ -271,12 +284,12 @@ export default function EmployeeFormPage({ isEdit = false }: { isEdit?: boolean 
             </FormField>
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Email" error={errors.email}>
-                <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+                <input type="email" name="email" autoComplete="email" value={form.email} onChange={e => set('email', e.target.value)}
                   placeholder="ahmed@company.ae" className={inp(!!errors.email)}/>
               </FormField>
-              <FormField label="Phone Number">
-                <input value={form.phoneNumber} onChange={e => set('phoneNumber', e.target.value)}
-                  placeholder="+971 50 000 0000" className={inp(false)}/>
+              <FormField label="Phone Number" error={errors.phoneNumber}>
+                <input type="tel" name="phoneNumber" autoComplete="tel" value={form.phoneNumber} onChange={e => set('phoneNumber', e.target.value)}
+                  placeholder="+971 50 000 0000" className={inp(!!errors.phoneNumber)}/>
               </FormField>
             </div>
             <FormField label="Basic Monthly Salary (AED)">

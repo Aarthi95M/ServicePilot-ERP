@@ -29,6 +29,12 @@ const ROLE_CONFIG: Record<string, { cls: string }> = {
 const ROLES = ['Admin','HRManager','Supervisor','Dispatcher','Technician'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Same phone-format rule used elsewhere in the app (CreateTechnicianModal,
+// backend CreateEmployeeDtoValidator/CreateTechnicianDtoValidator) — digits,
+// spaces, dashes, parentheses, optional leading '+'. Was previously missing
+// here, so malformed phone numbers (including ones equal to the email) could
+// slip through unvalidated.
+const PHONE_RE = /^[+\d\s\-().]{7,20}$/;
 
 export default function UsersPage() {
   const qc = useQueryClient();
@@ -136,6 +142,16 @@ export default function UsersPage() {
     } else if (!EMAIL_RE.test(form.email.trim())) {
       errs.email = 'Enter a valid email address';
     }
+    if (form.phoneNumber.trim()) {
+      const phone = form.phoneNumber.trim();
+      if (!PHONE_RE.test(phone)) {
+        errs.phoneNumber = 'Phone must contain only numbers, +, spaces, dashes, or parentheses.';
+      } else if (phone.toLowerCase() === form.email.trim().toLowerCase()) {
+        // Guards against the exact bug pattern reported — the phone field
+        // ending up with the email address as its value.
+        errs.phoneNumber = 'Phone number cannot be the same as the email address.';
+      }
+    }
     if (!form.password) {
       errs.password = 'Password is required';
     } else if (form.password.length < 8) {
@@ -174,6 +190,9 @@ export default function UsersPage() {
   const handleUpdate = () => {
     const errs: Record<string, string> = {};
     if (!editForm.fullName.trim()) errs.fullName = 'Full name is required';
+    if (editForm.phoneNumber.trim() && !PHONE_RE.test(editForm.phoneNumber.trim())) {
+      errs.phoneNumber = 'Phone must contain only numbers, +, spaces, dashes, or parentheses.';
+    }
     if (['Supervisor','Technician'].includes(editForm.role) && !editForm.branchId) {
       errs.branchId = 'Branch is required for this role';
     }
@@ -341,8 +360,8 @@ export default function UsersPage() {
               <Field label="Email *" error={errors.email}>
                 <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="ahmed@company.ae" className={inp(!!errors.email)} autoComplete="off"/>
               </Field>
-              <Field label="Phone">
-                <input type="tel" value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(false)} autoComplete="tel"/>
+              <Field label="Phone" error={errors.phoneNumber}>
+                <input type="tel" name="phoneNumber" value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(!!errors.phoneNumber)} autoComplete="tel"/>
               </Field>
               <Field label="Role">
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inp(false)}>
@@ -391,8 +410,8 @@ export default function UsersPage() {
               <Field label="Full Name *" error={editErrors.fullName}>
                 <input value={editForm.fullName} onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Ahmed Mohammed" className={inp(!!editErrors.fullName)} autoComplete="off"/>
               </Field>
-              <Field label="Phone">
-                <input type="tel" value={editForm.phoneNumber} onChange={e => setEditForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(false)} autoComplete="tel"/>
+              <Field label="Phone" error={editErrors.phoneNumber}>
+                <input type="tel" name="phoneNumber" value={editForm.phoneNumber} onChange={e => setEditForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+971 50 000 0000" className={inp(!!editErrors.phoneNumber)} autoComplete="tel"/>
               </Field>
               <Field label="Role">
                 <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} className={inp(false)}>

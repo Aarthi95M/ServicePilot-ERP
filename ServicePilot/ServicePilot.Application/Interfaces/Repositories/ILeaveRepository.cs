@@ -12,7 +12,14 @@ namespace ServicePilot.Application.Interfaces.Repositories
     public interface ILeaveRepository
     {
         Task<LeaveRequest?> GetByIdAsync(Guid id, Guid companyId);
-        Task<PagedResult<LeaveRequest>> GetPagedAsync(Guid companyId, PagedLeaveRequest filter);
+        /// <summary>
+        /// Paged leave list. Optional <paramref name="excludeEmployeeId"/> filters out
+        /// a specific employee's own requests — used so a Supervisor's approval queue
+        /// never contains their own leave requests (those must go to Admin/HR instead).
+        /// Defaults to null (no exclusion) so existing callers are unaffected.
+        /// </summary>
+        Task<PagedResult<LeaveRequest>> GetPagedAsync(
+            Guid companyId, PagedLeaveRequest filter, Guid? excludeEmployeeId = null);
         Task<IEnumerable<LeaveRequest>> GetByEmployeeAsync(Guid employeeId, Guid companyId);
 
         /// <summary>

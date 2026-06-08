@@ -19,5 +19,15 @@ namespace ServicePilot.Application.DTOs.Leave
 
         /// <summary>Optional reason for leave.</summary>
         public string? Reason { get; set; }
+
+        /// <summary>
+        /// Optional — the employee this request is being filed FOR.
+        /// Leave null for normal self-service requests (the calling user's own
+        /// employee profile is used). Admin / Supervisor / HR Manager may set
+        /// this to file a (possibly backdated) leave request on behalf of an
+        /// employee who forgot to submit it themselves. Any other role supplying
+        /// this is rejected by the service layer.
+        /// </summary>
+        public Guid? EmployeeId { get; set; }
     }
 }

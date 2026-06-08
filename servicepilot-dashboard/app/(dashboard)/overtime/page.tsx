@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api/client';
 import { useToast } from '@/components/shared/ToastProvider';
+import { ConfirmDialog, type ConfirmDialogState } from '@/components/shared/ConfirmDialog';
 
 function useOvertimeRequests(params: Record<string, any>) {
   return useQuery({
@@ -51,12 +52,15 @@ export default function OvertimePage() {
   const [params, setParams] = useState({ page: 1, pageSize: 20, status: 'Pending' });
   const [selected, setSelected] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // Custom in-app confirmation dialog state — replaces browser confirm() popups
+  const [dialog, setDialog] = useState<ConfirmDialogState | null>(null);
 
   const { showToast } = useToast();
   const { data, isLoading } = useOvertimeRequests(params);
   const action = useOvertimeAction();
 
-  const handleAction = (id: string, status: 'Approved' | 'Rejected') => {
+  // Performs the actual approve/reject API call (called only after the user confirms)
+  const performAction = (id: string, status: 'Approved' | 'Rejected') => {
     action.mutate(
       { id, status, reason: status === 'Rejected' ? rejectReason : undefined },
       {
@@ -64,21 +68,42 @@ export default function OvertimePage() {
           if (res.success) {
             setSelected(null);
             setRejectReason('');
+            setDialog(null);
             showToast(
               status === 'Approved' ? 'Overtime request approved' : 'Overtime request rejected',
               status === 'Approved' ? 'success' : 'warning'
             );
           } else {
+            setDialog(null);
             showToast(res.message || 'Action failed', 'error');
           }
         },
-        onError: (err: any) => showToast(err?.message || 'Action failed', 'error'),
+        onError: (err: any) => {
+          setDialog(null);
+          showToast(err?.message || 'Action failed', 'error');
+        },
       }
     );
   };
 
+  // Opens the custom confirmation dialog before approving/rejecting — no browser confirm()
+  const handleAction = (id: string, status: 'Approved' | 'Rejected') => {
+    const isApprove = status === 'Approved';
+    setDialog({
+      title: isApprove ? 'Approve Overtime Request' : 'Reject Overtime Request',
+      message: isApprove
+        ? `Are you sure you want to approve this overtime request for ${selected?.employeeName ?? 'this employee'}? This action will notify the employee.`
+        : `Are you sure you want to reject this overtime request for ${selected?.employeeName ?? 'this employee'}?${rejectReason ? '' : ' You can optionally add a rejection reason before confirming.'}`,
+      confirmLabel: isApprove ? 'Approve' : 'Reject',
+      confirmCls: isApprove ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700',
+      onConfirm: () => performAction(id, status),
+    });
+  };
+
   return (
     <div>
+      {/* Custom confirm dialog — replaces browser confirm() for approve/reject actions */}
+      <ConfirmDialog state={dialog} onClose={() => setDialog(null)} isLoading={action.isPending} />
       <div className="mb-6">
         <h1 className="text-[22px] font-bold tracking-tight text-gray-900">Overtime</h1>
         <p className="mt-0.5 text-[13px] text-gray-500">Review and approve overtime requests</p>

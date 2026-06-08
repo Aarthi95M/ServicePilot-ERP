@@ -103,8 +103,13 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
             )}
           </View>
 
-          <DatePicker label="Start Date" value={startDate} onChange={setStart} maxDate={endDate || undefined} placeholder="Select start date" />
-          <DatePicker label="End Date"   value={endDate}   onChange={setEnd}   minDate={startDate || undefined} placeholder="Select end date" />
+          {/* Leave requests are forward-looking self-service requests — the
+              calendar should not let an employee pick a date that's already
+              gone. (Backdated leave on an employee's behalf is a separate,
+              Admin/Supervisor/HR-only flow available from the web dashboard.)
+              minDate=today blocks past dates; maxDate=endDate keeps the range valid. */}
+          <DatePicker label="Start Date" value={startDate} onChange={setStart} minDate={todayISO()} maxDate={endDate || undefined} placeholder="Select start date" />
+          <DatePicker label="End Date"   value={endDate}   onChange={setEnd}   minDate={startDate || todayISO()} placeholder="Select end date" />
 
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Reason</Text>

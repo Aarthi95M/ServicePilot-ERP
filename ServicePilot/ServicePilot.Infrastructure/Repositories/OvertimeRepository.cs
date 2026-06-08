@@ -34,13 +34,18 @@ namespace ServicePilot.Infrastructure.Repositories
         }
 
         public async Task<PagedResult<OvertimeRequest>> GetPagedAsync(
-            Guid companyId, PagedOvertimeRequest filter)
+            Guid companyId, PagedOvertimeRequest filter, Guid? excludeEmployeeId = null)
         {
             var query = _context.OvertimeRequests
                 .AsNoTracking()
                 .Include(x => x.Employee)
                 .Include(x => x.ApprovedByNavigation)
                 .Where(x => x.CompanyId == companyId);
+
+            // Exclude a specific employee's own requests (e.g. a Supervisor's
+            // approval queue must never include their own overtime requests).
+            if (excludeEmployeeId.HasValue)
+                query = query.Where(x => x.EmployeeId != excludeEmployeeId.Value);
 
             if (filter.EmployeeId.HasValue)
                 query = query.Where(x => x.EmployeeId == filter.EmployeeId);

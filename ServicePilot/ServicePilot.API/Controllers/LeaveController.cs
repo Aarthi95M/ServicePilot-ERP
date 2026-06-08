@@ -24,7 +24,9 @@ namespace ServicePilot.API.Controllers
         /// Validates: leave type, date range, no overlaps, annual limit.
         /// </summary>
         [HttpPost]
-        [Authorize(Roles = Roles.CheckInAccess)]          // Admin,Supervisor,Technician
+        [Authorize(Roles = Roles.LeaveWriteAccess)]       // Admin,Supervisor,Technician,HRManager
+                                                          // HRManager added so HR can file leave
+                                                          // on behalf of an employee (see DTO.EmployeeId)
         public async Task<IActionResult> Create([FromBody] CreateLeaveRequestDto dto)
         {
             var response = await _service.CreateAsync(dto);

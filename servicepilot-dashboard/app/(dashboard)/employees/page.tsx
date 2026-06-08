@@ -377,8 +377,16 @@ function CreateTechnicianModal({ lookups, onClose, onCreated }: CreateTechnician
     if (!form.fullName.trim()) errs.fullName = 'Full name is required.';
     if (!form.email.trim()) errs.email = 'Email is required (used for mobile login).';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Invalid email address.';
-    if (form.phoneNumber.trim() && !/^[+\d\s\-().]+$/.test(form.phoneNumber.trim()))
-      errs.phoneNumber = 'Phone must contain only numbers, +, spaces, or dashes.';
+    if (form.phoneNumber.trim()) {
+      const phone = form.phoneNumber.trim();
+      if (!/^[+\d\s\-().]+$/.test(phone)) {
+        errs.phoneNumber = 'Phone must contain only numbers, +, spaces, or dashes.';
+      } else if (form.email.trim() && phone.toLowerCase() === form.email.trim().toLowerCase()) {
+        // Defends against the phone field accidentally ending up with the
+        // email address as its value (e.g. browser autofill cross-contamination).
+        errs.phoneNumber = 'Phone number cannot be the same as the email address.';
+      }
+    }
     if (!form.password) errs.password = 'Password is required.';
     else if (form.password.length < 6) errs.password = 'Password must be at least 6 characters.';
     if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match.';

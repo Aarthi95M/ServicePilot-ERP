@@ -43,11 +43,49 @@ namespace ServicePilot.Infrastructure.Services
         public async Task<ApiResponse<LeaveRequestResponseDto>> CreateAsync(
             CreateLeaveRequestDto dto)
         {
-            // Resolve employee linked to current user
-            var employee = await GetEmployeeForCurrentUserAsync();
-            if (employee == null)
-                return Fail<LeaveRequestResponseDto>(
-                    "No employee profile linked to this account.");
+            // Resolve the employee this request is FOR.
+            //
+            // Normal flow: dto.EmployeeId is null → use the calling user's own
+            // employee profile (self-service request).
+            //
+            // "On behalf of" flow: Admin / Supervisor / HR Manager may pass
+            // dto.EmployeeId to file a (possibly backdated) leave request for an
+            // employee who forgot to submit it themselves. Any other role trying
+            // to set EmployeeId is rejected — they may only request for themselves.
+            Employee? employee;
+            if (dto.EmployeeId.HasValue)
+            {
+                if (!_authorization.IsAdmin() &&
+                    !_authorization.IsHRManager() &&
+                    !_authorization.IsSupervisor())
+                {
+                    return Fail<LeaveRequestResponseDto>(
+                        "Only Admin, Supervisor, or HR Manager can file a leave request on behalf of another employee.");
+                }
+
+                employee = await _context.Employees
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.EmployeeId.Value &&
+                        x.CompanyId == _currentUser.CompanyId &&
+                        x.IsActive);
+
+                if (employee == null)
+                    return Fail<LeaveRequestResponseDto>(
+                        "Employee not found or inactive.");
+
+                // Supervisor can only file on behalf of employees in their own branch
+                if (_authorization.IsSupervisor() && employee.BranchId != _currentUser.BranchId)
+                    return Fail<LeaveRequestResponseDto>(
+                        "Access denied. You can only file leave for employees in your branch.");
+            }
+            else
+            {
+                employee = await GetEmployeeForCurrentUserAsync();
+                if (employee == null)
+                    return Fail<LeaveRequestResponseDto>(
+                        "No employee profile linked to this account.");
+            }
 
             // Validate leave type belongs to company and is active
             var leaveType = await _repository.GetLeaveTypeAsync(
@@ -106,11 +144,15 @@ namespace ServicePilot.Infrastructure.Services
             // roll back the already-saved leave request or return a 500.
             try
             {
+                var onBehalf = dto.EmployeeId.HasValue;
                 await _notifications.NotifyCompanyAsync(
                     _currentUser.CompanyId,
                     title:   $"New Leave Request — {employee.FullName}",
-                    message: $"{employee.FullName} submitted a {leaveType.Name} request " +
-                             $"({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}).",
+                    message: onBehalf
+                        ? $"A {leaveType.Name} request was filed on behalf of {employee.FullName} " +
+                          $"({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy})."
+                        : $"{employee.FullName} submitted a {leaveType.Name} request " +
+                          $"({request.StartDate:dd MMM} – {request.EndDate:dd MMM yyyy}).",
                     type:    "leave");
             }
             catch { /* swallow — leave is already persisted */ }
@@ -171,7 +213,11 @@ namespace ServicePilot.Infrastructure.Services
         public async Task<ApiResponse<PagedResult<LeaveRequestResponseDto>>> GetPagedAsync(
             PagedLeaveRequest filter)
         {
-            // Supervisor locked to their branch employees
+            // Supervisor locked to their branch employees, and their OWN
+            // requests are excluded from their approval queue — a supervisor's
+            // leave must be approved by Admin/HR, never by the supervisor
+            // themselves, so it shouldn't even appear in their queue.
+            Guid? excludeEmployeeId = null;
             if (_authorization.IsSupervisor())
             {
                 var branchEmployeeIds = await _context.Employees
@@ -185,9 +231,13 @@ namespace ServicePilot.Infrastructure.Services
                 if (filter.EmployeeId.HasValue &&
                     !branchEmployeeIds.Contains(filter.EmployeeId.Value))
                     return Fail<PagedResult<LeaveRequestResponseDto>>("Access denied.");
+
+                var supervisorEmployee = await GetEmployeeForCurrentUserAsync();
+                if (supervisorEmployee != null)
+                    excludeEmployeeId = supervisorEmployee.Id;
             }
 
-            var result = await _repository.GetPagedAsync(_currentUser.CompanyId, filter);
+            var result = await _repository.GetPagedAsync(_currentUser.CompanyId, filter, excludeEmployeeId);
 
             return Ok(new PagedResult<LeaveRequestResponseDto>
             {
@@ -230,9 +280,18 @@ namespace ServicePilot.Infrastructure.Services
                 return Fail<LeaveRequestResponseDto>(
                     $"Cannot action a request that is already {request.Status}.");
 
-            // Supervisor can only approve/reject their branch employees
+            // Supervisor can only approve/reject their branch employees —
+            // and may NEVER approve/reject their own request (must go to
+            // Admin / HR Manager instead). Self-check first: a supervisor
+            // is technically "in their own branch", so the branch check
+            // alone would otherwise let them self-approve.
             if (_authorization.IsSupervisor())
             {
+                var supervisorEmployee = await GetEmployeeForCurrentUserAsync();
+                if (supervisorEmployee != null && request.EmployeeId == supervisorEmployee.Id)
+                    return Fail<LeaveRequestResponseDto>(
+                        "You cannot approve or reject your own leave request. This requires Admin or HR Manager approval.");
+
                 var inBranch = await _context.Employees.AnyAsync(x =>
                     x.Id == request.EmployeeId &&
                     x.BranchId == _currentUser.BranchId);

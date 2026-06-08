@@ -12,8 +12,14 @@ namespace ServicePilot.Application.Interfaces.Repositories
     public interface IOvertimeRepository
     {
         Task<OvertimeRequest?> GetByIdAsync(Guid id, Guid companyId);
+        /// <summary>
+        /// Paged overtime list. Optional <paramref name="excludeEmployeeId"/> filters out
+        /// a specific employee's own requests — used so a Supervisor's approval queue
+        /// never contains their own overtime requests (those must go to Admin/HR instead).
+        /// Defaults to null (no exclusion) so existing callers are unaffected.
+        /// </summary>
         Task<PagedResult<OvertimeRequest>> GetPagedAsync(
-            Guid companyId, PagedOvertimeRequest filter);
+            Guid companyId, PagedOvertimeRequest filter, Guid? excludeEmployeeId = null);
         Task<IEnumerable<OvertimeRequest>> GetByEmployeeAsync(
             Guid employeeId, Guid companyId);
 

@@ -42,6 +42,15 @@ namespace ServicePilot.Domain.Constants
         /// <summary>All roles that can check in/out (field roles).</summary>
         public const string CheckInAccess = "Admin,Supervisor,Technician";
 
+        /// <summary>
+        /// All roles that can submit leave requests — either for themselves
+        /// (Technician/Supervisor/Admin self-service) or, for Admin/Supervisor/
+        /// HRManager, on behalf of another employee (e.g. backdated leave the
+        /// employee forgot to file). HRManager is included here (but NOT in
+        /// CheckInAccess) specifically so HR can file leave for employees.
+        /// </summary>
+        public const string LeaveWriteAccess = "Admin,Supervisor,Technician,HRManager";
+
         /// <summary>Lookup endpoints — all authenticated roles.</summary>
         public const string AllRoles = "Admin,HRManager,Supervisor,Dispatcher,Technician";
     }

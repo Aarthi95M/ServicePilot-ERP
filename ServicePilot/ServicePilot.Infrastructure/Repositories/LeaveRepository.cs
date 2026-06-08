@@ -35,7 +35,7 @@ namespace ServicePilot.Infrastructure.Repositories
         }
 
         public async Task<PagedResult<LeaveRequest>> GetPagedAsync(
-            Guid companyId, PagedLeaveRequest filter)
+            Guid companyId, PagedLeaveRequest filter, Guid? excludeEmployeeId = null)
         {
             var query = _context.LeaveRequests
                 .AsNoTracking()
@@ -43,6 +43,11 @@ namespace ServicePilot.Infrastructure.Repositories
                 .Include(x => x.LeaveType)
                 .Include(x => x.ApprovedByNavigation)
                 .Where(x => x.CompanyId == companyId);
+
+            // Exclude a specific employee's own requests (e.g. a Supervisor's
+            // approval queue must never include their own leave requests).
+            if (excludeEmployeeId.HasValue)
+                query = query.Where(x => x.EmployeeId != excludeEmployeeId.Value);
 
             // ── Filters ──────────────────────────────────────────────
             if (filter.EmployeeId.HasValue)
