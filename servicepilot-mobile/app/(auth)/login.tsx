@@ -104,7 +104,7 @@ export default function LoginScreen() {
             <Text style={styles.label}>Password</Text>
             <View style={styles.passWrap}>
               <TextInput
-                style={[styles.input, { paddingRight: 48 }]}
+                style={[styles.input, { paddingRight: 54 }]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Enter your password"
@@ -113,8 +113,11 @@ export default function LoginScreen() {
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
               />
-              <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass(p => !p)}>
-                <Text style={styles.eyeIcon}>{showPass ? '🙈' : '👁️'}</Text>
+              {/* Clean text-based toggle — "Show" / "Hide" in brand colour.
+                  Emoji icons looked unprofessional; text labels are unambiguous
+                  and match the style of Gmail, banking apps, etc. on mobile. */}
+              <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass(p => !p)} accessibilityLabel={showPass ? 'Hide password' : 'Show password'}>
+                <Text style={styles.eyeLabel}>{showPass ? 'Hide' : 'Show'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -153,8 +156,8 @@ const styles = StyleSheet.create({
   input:      { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: FontSize.base, color: Colors.text },
 
   passWrap:   { position: 'relative' },
-  eyeBtn:     { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
-  eyeIcon:    { fontSize: 16 },
+  eyeBtn:     { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 4 },
+  eyeLabel:   { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.primary, letterSpacing: 0.3 },
 
   forgotWrap: { alignSelf: 'flex-end', marginTop: -8 },
   forgotText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.primary },

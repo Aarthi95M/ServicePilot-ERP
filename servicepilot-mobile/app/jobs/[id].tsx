@@ -9,11 +9,16 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Alert, Image, ActivityIndicator, Linking,
+  TextInput, Alert, Image, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
+// expo-file-system v56 moved the classic API (cacheDirectory, writeAsStringAsync,
+// deleteAsync, EncodingType) to a "/legacy" sub-path.  The root import now
+// exposes only the new OOP File/Directory/Paths API.
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { jobsApi } from '@/lib/api/jobs';
 import { lookupsApi } from '@/lib/api/lookups';
 import { Card } from '@/components/shared/Card';
@@ -82,25 +87,41 @@ export default function JobDetailScreen() {
     }
   };
 
-  // "Download photos" — there was no way to save/export a job photo at all
-  // (only upload). Saving directly to the gallery would need expo-media-library
-  // / expo-sharing, which aren't installed and would require a native rebuild.
-  // Opening the photo URL in the system browser is a zero-dependency option
-  // that works on iOS & Android: the browser's native image viewer lets the
-  // user long-press → "Save/Download image" straight to their device.
-  const handleDownloadPhoto = async (url: string) => {
+  // Save a job photo to the device's camera roll / photo gallery.
+  //
+  // Photos are stored as base64 data URIs (data:image/jpeg;base64,…) rather
+  // than hosted URLs — the original Linking.openURL approach failed because
+  // the OS can't open arbitrary data URIs via an intent.
+  //
+  // Flow: request MediaLibrary permission → write base64 to a temp cache
+  // file (expo-file-system) → saveToLibraryAsync (expo-media-library) →
+  // delete temp file → done.  Both libraries are now installed (v56).
+  const handleSavePhoto = async (dataUri: string) => {
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Allow photo library access to save photos.');
         return;
       }
-      throw new Error('unsupported');
-    } catch {
-      Alert.alert(
-        'Could not open photo',
-        'Long-press the photo thumbnail to copy its link, or check your internet connection.',
-      );
+
+      // Extract base64 payload and detect the image extension from the MIME header
+      const mimeMatch = dataUri.match(/^data:image\/(\w+);base64,/);
+      const ext = mimeMatch?.[1] ?? 'jpg';
+      const base64 = dataUri.replace(/^data:image\/\w+;base64,/, '');
+
+      const localUri = `${FileSystem.cacheDirectory}sp_photo_${Date.now()}.${ext}`;
+      await FileSystem.writeAsStringAsync(localUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await MediaLibrary.saveToLibraryAsync(localUri);
+
+      // Clean up temp file — fire-and-forget, no need to await
+      FileSystem.deleteAsync(localUri, { idempotent: true });
+
+      Alert.alert('✅ Saved', 'Photo saved to your gallery.');
+    } catch (e: any) {
+      Alert.alert('Save failed', e?.message ?? 'Something went wrong.');
     }
   };
 
@@ -110,9 +131,12 @@ export default function JobDetailScreen() {
       Alert.alert('Permission needed', 'Please allow photo library access.');
       return;
     }
+    // allowsEditing: false — skip the crop/edit step so the selected photo
+    // uploads immediately (setting this to true was showing a crop screen
+    // instead of starting the upload, which confused users).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.6,
       base64: true,
     });
@@ -130,7 +154,7 @@ export default function JobDetailScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.6,
       base64: true,
     });
@@ -274,7 +298,7 @@ export default function JobDetailScreen() {
                   <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
                   <TouchableOpacity
                     style={styles.downloadBtn}
-                    onPress={() => handleDownloadPhoto(url)}
+                    onPress={() => handleSavePhoto(url)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
                     <Text style={styles.downloadBtnText}>⬇ Save</Text>

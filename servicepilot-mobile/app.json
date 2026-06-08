@@ -19,7 +19,8 @@
         "NSLocationWhenInUseUsageDescription": "ServicePilot needs your location to record check-in/out GPS coordinates.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ServicePilot needs background location to log your position while on duty.",
         "NSCameraUsageDescription": "ServicePilot needs camera access to take job site photos.",
-        "NSPhotoLibraryUsageDescription": "ServicePilot needs photo library access to attach photos to jobs."
+        "NSPhotoLibraryUsageDescription": "ServicePilot needs photo library access to attach photos to jobs.",
+        "NSPhotoLibraryAddUsageDescription": "ServicePilot needs permission to save job photos to your photo library."
       }
     },
     "android": {
@@ -61,7 +62,15 @@
           "cameraPermission": "ServicePilot needs camera access to take job site photos."
         }
       ],
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "ServicePilot needs access to save job photos to your gallery.",
+          "savePhotosPermission": "ServicePilot needs permission to save job photos to your gallery.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

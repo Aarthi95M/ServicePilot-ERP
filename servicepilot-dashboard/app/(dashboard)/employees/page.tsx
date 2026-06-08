@@ -12,6 +12,11 @@ import { useLookups } from '@/lib/hooks/useLookups';
 import { ConfirmDialog, type ConfirmDialogState } from '@/components/shared/ConfirmDialog';
 import type { PagedEmployeeRequest, DocumentStatus } from '@/lib/types';
 
+// Temporarily hidden per request — the multi-step "/employees/new" creation
+// flow is being reworked. Flip back to `true` to restore the button; nothing
+// else about that route or page was touched, so re-enabling is a one-line change.
+const SHOW_ADD_EMPLOYEE_BUTTON = false;
+
 export default function EmployeesPage() {
   const router = useRouter();
 
@@ -106,13 +111,15 @@ export default function EmployeesPage() {
             </svg>
             Create Technician / Supervisor
           </button>
-          <Link href="/employees/new"
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Add Employee
-          </Link>
+          {SHOW_ADD_EMPLOYEE_BUTTON && (
+            <Link href="/employees/new"
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-btn px-4 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Employee
+            </Link>
+          )}
         </div>
       </div>
 
