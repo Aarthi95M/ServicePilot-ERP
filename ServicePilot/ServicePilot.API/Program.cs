@@ -24,7 +24,6 @@ try
 {
     Log.Information("Starting ServicePilot API");
 
-    AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
     var builder = WebApplication.CreateBuilder(args);
 
     // ── Serilog ───────────────────────────────────────────────────────────────────
@@ -174,6 +173,17 @@ try
 
     // ── Build ─────────────────────────────────────────────────────────────────────
     var app = builder.Build();
+
+    // ── Auto-migrate database on startup ──────────────────────────────────────────
+    // Runs any pending EF Core migrations automatically when the app starts.
+    // Safe to run on every deploy — EF Core is idempotent (skips applied migrations).
+    // Removes the need to run "dotnet ef database update" manually on the server.
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
+        Log.Information("Database migration check complete.");
+    }
 
     // Global exception handler — must be first in the pipeline
     app.UseMiddleware<ExceptionMiddleware>();

@@ -61,7 +61,7 @@ namespace ServicePilot.Infrastructure.Services
                     "You have already checked in today. Please check out first.");
 
             var checkInTime = dto.IsOfflineSync && dto.CheckInTimeOverride.HasValue
-                ? dto.CheckInTimeOverride.Value
+                ? DateTime.SpecifyKind(dto.CheckInTimeOverride.Value, DateTimeKind.Utc)
                 : DateTime.UtcNow;
 
             var status = DetermineStatus(checkInTime);
@@ -107,7 +107,7 @@ namespace ServicePilot.Infrastructure.Services
                     "No open check-in found for today. Please check in first.");
 
             var checkOutTime = dto.IsOfflineSync && dto.CheckOutTimeOverride.HasValue
-                ? dto.CheckOutTimeOverride.Value
+                ? DateTime.SpecifyKind(dto.CheckOutTimeOverride.Value, DateTimeKind.Utc)
                 : DateTime.UtcNow;
 
             // ✅ FIX: CheckInTime may be DateTime? in your entity — use .GetValueOrDefault()
@@ -331,9 +331,11 @@ namespace ServicePilot.Infrastructure.Services
                 return Fail<AttendanceResponseDto>(
                     "Check-out time must be after check-in time.");
 
-            // Apply changes
-            log.CheckInTime  = dto.CheckInTime;
-            log.CheckOutTime = dto.CheckOutTime;   // null = clears checkout → employee can re-checkout via mobile
+            // Apply changes — ensure UTC kind so Npgsql writes to timestamptz correctly
+            log.CheckInTime  = DateTime.SpecifyKind(dto.CheckInTime, DateTimeKind.Utc);
+            log.CheckOutTime = dto.CheckOutTime.HasValue
+                ? DateTime.SpecifyKind(dto.CheckOutTime.Value, DateTimeKind.Utc)
+                : (DateTime?)null;   // null = clears checkout → employee can re-checkout via mobile
             log.Status       = DetermineStatus(dto.CheckInTime);
             log.UpdatedAt    = DateTime.UtcNow;
             // GPS coords are deliberately NOT changed — they reflect the real device location
@@ -380,8 +382,10 @@ namespace ServicePilot.Infrastructure.Services
                 Id            = Guid.NewGuid(),
                 CompanyId     = _currentUser.CompanyId,
                 EmployeeId    = dto.EmployeeId,
-                CheckInTime   = dto.CheckInTime,
-                CheckOutTime  = dto.CheckOutTime,
+                CheckInTime   = DateTime.SpecifyKind(dto.CheckInTime, DateTimeKind.Utc),
+                CheckOutTime  = dto.CheckOutTime.HasValue
+                    ? DateTime.SpecifyKind(dto.CheckOutTime.Value, DateTimeKind.Utc)
+                    : (DateTime?)null,
                 CheckInLat    = 0,
                 CheckInLng    = 0,
                 Status        = DetermineStatus(dto.CheckInTime),

@@ -231,12 +231,18 @@ function TimeChip({ label, time, raw }: { label: string; time: string; raw?: boo
   );
 }
 
+// Ensure ISO string has a timezone marker — backend legacy switch was removed so
+// strings will always carry "Z", but this guard future-proofs offline-synced records.
+function toUtcIso(iso: string): string {
+  return iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+}
+
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return new Date(toUtcIso(iso)).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', {
+  return new Date(toUtcIso(iso)).toLocaleDateString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short',
   });
 }

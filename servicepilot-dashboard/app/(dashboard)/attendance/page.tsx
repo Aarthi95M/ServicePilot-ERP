@@ -11,11 +11,20 @@ import { SortArrow } from '@/lib/hooks/useTableSort';
 import { LeafletMap } from '@/components/shared/LeafletMap';
 import type { MapMarker } from '@/components/shared/LeafletMap';
 
+// ─── UTC guard ────────────────────────────────────────────────────────────────
+// The backend previously serialised DateTimes without a "Z" suffix due to a
+// Npgsql legacy-mode flag.  That flag is now removed, so all timestamps carry
+// "Z".  This helper is defence-in-depth for any stale records in the database.
+function ensureUtc(iso: string): string {
+  if (!iso) return iso;
+  return iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+}
+
 // ─── Adjust modal ─────────────────────────────────────────────────────────────
 // Converts a UTC ISO string to the value format required by <input type="datetime-local">
 function isoToLocal(iso: string | null | undefined): string {
   if (!iso) return '';
-  const d = new Date(iso);
+  const d = new Date(ensureUtc(iso));
   // datetime-local needs "YYYY-MM-DDTHH:mm"
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -75,7 +84,7 @@ function AdjustModal({ record, onClose, onSaved }: AdjustModalProps) {
             <p className="mt-0.5 text-[13px] text-gray-500">
               {record.employeeName} &mdash;{' '}
               {record.checkInTime
-                ? new Date(record.checkInTime).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                ? new Date(ensureUtc(record.checkInTime)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
                 : 'Unknown date'}
             </p>
           </div>
@@ -495,7 +504,7 @@ export default function AttendancePage() {
                           </div>
                           <div className="text-right flex-shrink-0">
                             <div className="text-[11px] text-gray-500">
-                              {emp.checkInTime ? new Date(emp.checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''}
+                              {emp.checkInTime ? new Date(ensureUtc(emp.checkInTime)).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''}
                             </div>
                             <span className="text-[10px] font-medium text-green-600">On site</span>
                           </div>
@@ -536,7 +545,7 @@ export default function AttendancePage() {
                         label: emp.employeeName ?? 'Unknown',
                         popup: `${emp.employeeName} — checked in ${
                           emp.checkInTime
-                            ? new Date(emp.checkInTime).toLocaleTimeString('en-US', {
+                            ? new Date(ensureUtc(emp.checkInTime)).toLocaleTimeString('en-US', {
                                 hour: '2-digit', minute: '2-digit',
                               })
                             : ''
@@ -723,17 +732,17 @@ export default function AttendancePage() {
                         </td>
                         <td className="px-5 py-3.5 text-[13px] text-gray-700">
                           {log.checkInTime
-                            ? new Date(log.checkInTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                            ? new Date(ensureUtc(log.checkInTime)).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                             : '—'}
                         </td>
                         <td className="px-5 py-3.5 text-[13px] text-gray-700">
                           {log.checkInTime
-                            ? new Date(log.checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            ? new Date(ensureUtc(log.checkInTime)).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
                             : '—'}
                         </td>
                         <td className="px-5 py-3.5 text-[13px] text-gray-700">
                           {log.checkOutTime
-                            ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            ? new Date(ensureUtc(log.checkOutTime)).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
                             : <span className="text-gray-400 italic">Not yet</span>}
                         </td>
                         <td className="px-5 py-3.5 text-[13px] text-gray-700 tabular-nums">
