@@ -320,19 +320,18 @@ function LoginForm() {
             className="mb-8 flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-[12px] font-medium text-white/90 backdrop-blur-sm"
           >
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            Live Tracking Active
+            Live Technician Map Active
           </div>
 
           <h2 className="mb-4 text-[36px] font-bold leading-tight tracking-tight text-white">
-            Manage Your
+            Your Team,
             <br />
-            Field Workforce
+            Always Connected
           </h2>
 
           <p className="mb-9 max-w-[420px] text-[15px] leading-relaxed text-white/60">
-            Complete workforce management solution for UAE technical services
-            companies. Track technicians, manage shifts, dispatch jobs, and
-            optimize operations in real-time.
+            GPS check-in, job dispatch, leave management and Excel reports —
+            built for UAE field service companies.
           </p>
 
           <div className="grid grid-cols-2 gap-3">
@@ -340,29 +339,29 @@ function LoginForm() {
               {
                 color: "rgba(52,211,153,0.15)",
                 ic: "#34d399",
-                title: "GPS Tracking",
-                desc: "Real-time location monitoring",
+                title: "GPS Attendance",
+                desc: "Check-in/out with live map & offline sync",
                 path: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 10m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
               },
               {
                 color: "rgba(251,191,36,0.15)",
                 ic: "#fbbf24",
-                title: "Smart Scheduling",
-                desc: "Automated shift planning",
-                path: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v6l4 2",
+                title: "Job Management",
+                desc: "Dispatch, assign & track field jobs",
+                path: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8",
               },
               {
                 color: "rgba(167,139,250,0.15)",
                 ic: "#a78bfa",
-                title: "Team Management",
-                desc: "Complete HR workflow",
+                title: "Leave & Overtime",
+                desc: "Requests, approvals & HR workflow",
                 path: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
               },
               {
                 color: "rgba(96,165,250,0.15)",
                 ic: "#60a5fa",
-                title: "Analytics",
-                desc: "Performance insights",
+                title: "Reports & Export",
+                desc: "Excel exports for attendance, jobs & compliance",
                 path: "M18 20V10 M12 20V4 M6 20v-6",
               },
             ].map(({ color, ic, title, desc, path }) => (
