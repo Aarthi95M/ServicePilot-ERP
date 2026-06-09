@@ -18,7 +18,9 @@ import * as ImagePicker from 'expo-image-picker';
 // deleteAsync, EncodingType) to a "/legacy" sub-path.  The root import now
 // exposes only the new OOP File/Directory/Paths API.
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
+// Same as expo-file-system — SDK 56 moved the classic API (requestPermissionsAsync,
+// saveToLibraryAsync) to a "/legacy" sub-path.  The root import is the new OOP API.
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { jobsApi } from '@/lib/api/jobs';
 import { lookupsApi } from '@/lib/api/lookups';
 import { Card } from '@/components/shared/Card';
