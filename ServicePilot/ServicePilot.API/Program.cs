@@ -183,6 +183,28 @@ try
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.Migrate();
         Log.Information("Database migration check complete.");
+
+        // ── Seed global roles ─────────────────────────────────────────────────
+        // Roles are platform-level (no company_id) and must exist before any
+        // company can be onboarded. Safe to run on every startup — idempotent.
+        var requiredRoles = new[]
+        {
+            "Admin", "Supervisor", "HRManager", "Dispatcher", "Technician"
+        };
+        foreach (var roleName in requiredRoles)
+        {
+            if (!db.Roles.Any(r => r.Name == roleName))
+            {
+                db.Roles.Add(new ServicePilot.Domain.Entities.Role
+                {
+                    Id        = Guid.NewGuid(),
+                    Name      = roleName,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+        db.SaveChanges();
+        Log.Information("Role seed check complete.");
     }
 
     // Global exception handler — must be first in the pipeline

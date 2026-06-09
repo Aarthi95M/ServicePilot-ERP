@@ -467,5 +467,16 @@ CREATE INDEX idx_prt_user_used ON password_reset_tokens (user_id, is_used);
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20260609163912_InitialCreate', '8.0.4');
 
+-- ── Seed: global roles ────────────────────────────────────────────────────────
+-- These are platform-level roles required before any company can be onboarded.
+-- ON CONFLICT DO NOTHING makes this safe to re-run.
+INSERT INTO roles (id, name, created_at) VALUES
+  (gen_random_uuid(), 'Admin',      now()),
+  (gen_random_uuid(), 'Supervisor', now()),
+  (gen_random_uuid(), 'HRManager',  now()),
+  (gen_random_uuid(), 'Dispatcher', now()),
+  (gen_random_uuid(), 'Technician', now())
+ON CONFLICT (name) DO NOTHING;
+
 COMMIT;
 
