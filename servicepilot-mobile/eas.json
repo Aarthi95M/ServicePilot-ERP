@@ -27,7 +27,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.servicepilot.ae/api"
+        "EXPO_PUBLIC_API_URL": "https://servicepilot-api.onrender.com/api"
       }
     }
   }

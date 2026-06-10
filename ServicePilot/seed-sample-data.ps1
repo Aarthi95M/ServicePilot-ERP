@@ -20,15 +20,24 @@
 #   - ServicePilot.API must be running locally (dotnet run), default port 5113
 #   - Run this AFTER the company/admin onboarding step (admin@techforce.ae)
 #
-# USAGE:
+# USAGE (local dev, default):
 #   powershell -ExecutionPolicy Bypass -File seed-sample-data.ps1
+#
+# USAGE (against production, after onboard-company.ps1 has been run):
+#   powershell -ExecutionPolicy Bypass -File seed-sample-data.ps1 -BaseUrl "https://servicepilot-api.onrender.com/api"
 # ==============================================================================
+
+param(
+    [string]$BaseUrl    = "http://localhost:5113/api",
+    [string]$AdminEmail = "admin@techforce.ae",
+    [string]$AdminPass  = "Admin@123456"
+)
 
 $ErrorActionPreference = "Stop"
 
-$baseUrl    = "http://localhost:5113/api"
-$adminEmail = "admin@techforce.ae"
-$adminPass  = "Admin@123456"
+$baseUrl    = $BaseUrl
+$adminEmail = $AdminEmail
+$adminPass  = $AdminPass
 
 # -- Helper: call the API and surface errors without stopping the script -----
 function Invoke-Api {
