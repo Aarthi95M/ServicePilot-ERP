@@ -14,7 +14,7 @@
 // A Razor Page with a PageModel handling OnPostAsync()
 // ============================================================
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -35,7 +35,24 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("from") || "/dashboard";
-  const { login } = useAuthStore();
+  const { login, isAuthenticated, token } = useAuthStore();
+
+  // ── Already-logged-in guard ───────────────────────────────────
+  // This used to live in middleware.ts / proxy.ts (redirect logged-in
+  // users away from /login). Both server-side conventions hit
+  // unresolved Vercel + Next.js 16 build bugs, so the check now
+  // happens here on the client instead.
+  useEffect(() => {
+    const hasToken =
+      isAuthenticated ||
+      !!token ||
+      !!sessionStorage.getItem("sp-token") ||
+      !!localStorage.getItem("sp-token");
+
+    if (hasToken) {
+      router.replace(redirectTo);
+    }
+  }, [isAuthenticated, token, redirectTo, router]);
 
   // useState — like a ViewModel field that triggers re-render on change
   // const [value, setValue] = useState(initialValue)
@@ -77,7 +94,10 @@ function LoginForm() {
       // localStorage (remember=true) or sessionStorage (remember=false)
       login(authUser, rememberMe);
 
-      // Save token in cookie so proxy.ts (server-side) can read it.
+      // Also save token in a cookie (kept for potential future
+      // server-side use). The actual auth-redirect check now runs
+      // client-side — see useEffect guards in this file and in
+      // app/(dashboard)/layout.tsx.
       // max-age: 30 days if remembered, 8 hours if not (session cookie).
       document.cookie = `sp-token=${token}; path=/; max-age=${
         rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 8

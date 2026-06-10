@@ -55,7 +55,7 @@ export function SessionGuard() {
     const now = Date.now();
     const msToExpiry = expiry - now;
 
-    // Already expired — middleware should redirect, but handle it here too
+    // Already expired — redirect immediately
     if (msToExpiry <= 0) {
       handleSignInAgain();
       return;

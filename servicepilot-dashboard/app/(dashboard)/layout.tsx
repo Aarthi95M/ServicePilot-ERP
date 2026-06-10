@@ -131,12 +131,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // .NET equivalent: Request.Path or RouteData.Values["action"]
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, token, isAuthenticated } = useAuthStore();
+
+  // ── Route guard ──────────────────────────────────────────────
+  // This used to live in middleware.ts / proxy.ts (server-side, runs
+  // on Vercel's Edge/Node "Proxy" boundary). Both file conventions hit
+  // unresolved Vercel + Next.js 16 build bugs (Edge "__dirname is not
+  // defined" crash, and Node "Proxy" causing sitewide 404s), so the
+  // check now happens here on the client instead — same outcome
+  // (unauthenticated users get bounced to /login), no Proxy file needed.
+  //
+  // .NET equivalent: [Authorize] attribute, but evaluated client-side.
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const hasToken =
+      isAuthenticated ||
+      !!token ||
+      !!sessionStorage.getItem('sp-token') ||
+      !!localStorage.getItem('sp-token');
+
+    if (!hasToken) {
+      router.replace(`/login?from=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    setAuthChecked(true);
+  }, [isAuthenticated, token, pathname, router]);
 
   // Notification bell badge — real unread count polled every 60 s
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ['notifications-unread'],
     queryFn: async () => (await apiClient.get('/notifications/unread-count')).data.data ?? 0,
+    enabled: authChecked,
     staleTime: 55_000,
     refetchInterval: 60_000,
   });
@@ -159,7 +185,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUserMenuOpen(false);
     // Clear Zustand store + localStorage
     logout();
-    // Clear the auth cookie so middleware redirects to login
+    // Clear the auth cookie too (legacy; the redirect to /login below
+    // is what actually does the work now)
     document.cookie = 'sp-token=; path=/; max-age=0';
     router.push('/login');
   };
@@ -168,6 +195,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const initials = user?.email
     ? user.email.substring(0, 2).toUpperCase()
     : 'SP';
+
+  // Don't flash the dashboard shell while the auth check (above) is
+  // still running or has just kicked off a redirect to /login.
+  if (!authChecked) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
