@@ -77,7 +77,7 @@ function LoginForm() {
       // localStorage (remember=true) or sessionStorage (remember=false)
       login(authUser, rememberMe);
 
-      // Save token in cookie so middleware.ts (server-side) can read it.
+      // Save token in cookie so proxy.ts (server-side) can read it.
       // max-age: 30 days if remembered, 8 hours if not (session cookie).
       document.cookie = `sp-token=${token}; path=/; max-age=${
         rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 8

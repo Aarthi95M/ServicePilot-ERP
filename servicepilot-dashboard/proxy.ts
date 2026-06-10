@@ -1,5 +1,8 @@
 // ============================================================
-// middleware.ts  ← ROOT of project, same level as app/
+// proxy.ts  ← ROOT of project, same level as app/
+// (Renamed from middleware.ts — Next.js 16 deprecated the
+//  "middleware" file convention in favor of "proxy". Same
+//  NextRequest/NextResponse API, same behavior.)
 //
 // WHAT THIS FILE IS:
 // Route protection. Runs on EVERY request before the page loads.
@@ -18,18 +21,25 @@
 //       await next();
 //   });
 //
-// HOW NEXT.JS MIDDLEWARE WORKS:
-// Next.js runs this file on the EDGE (very fast, before React).
+// HOW NEXT.JS PROXY WORKS:
+// Next.js runs this file before React renders the page.
 // It checks the request URL and cookies, then either:
 //   - Lets the request through (NextResponse.next())
 //   - Redirects to another URL (NextResponse.redirect())
 //
+// NOTE ON RUNTIME:
+// As of Next.js 16, files named "proxy.ts" default to the
+// Node.js runtime (the old "middleware.ts" convention defaulted
+// to the Edge runtime, which had a bundling bug causing
+// "ReferenceError: __dirname is not defined" on Vercel). This
+// rename fixes that crash without changing any behavior below.
+//
 // WHY COOKIE INSTEAD OF LOCALSTORAGE:
-// Middleware runs on the server before the page loads.
+// Proxy runs on the server before the page loads.
 // Server code cannot access localStorage (that's browser-only).
 // So we store a copy of the token in a cookie as well.
 // The Zustand store (localStorage) is used by client components.
-// The cookie is used by middleware for server-side route protection.
+// The cookie is used by proxy for server-side route protection.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -40,7 +50,7 @@ const PUBLIC_ROUTES = ['/login'];
 // Routes that authenticated users shouldn't see (redirect to dashboard)
 const AUTH_ROUTES = ['/login'];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Read the auth cookie — set during login
@@ -72,7 +82,7 @@ export function middleware(request: NextRequest) {
 }
 
 // ── Matcher config ───────────────────────────────────────────
-// Tells Next.js WHICH routes to run this middleware on.
+// Tells Next.js WHICH routes to run this proxy on.
 // We skip: API routes, static files, Next.js internals, images
 // This is important for performance — we only check auth on
 // actual pages, not on every image or CSS file download.
