@@ -37,10 +37,14 @@ apiClient.interceptors.request.use(async (config) => {
 });
 
 // ── Response interceptor — handle 401 ────────────────────────────────────────
+// NOTE: skip the auto-logout redirect for the login endpoint itself — a 401
+// there means wrong credentials, not an expired session.  Redirecting on a
+// failed login re-mounts the screen and swallows the error message silently.
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginRequest) {
       await SecureStore.deleteItemAsync('sp-token');
       router.replace('/(auth)/login');
     }

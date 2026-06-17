@@ -39,7 +39,13 @@ export default function LoginScreen() {
       router.replace('/(tabs)/home');
     },
     onError: (err: any) => {
-      setErrorMsg(err?.response?.data?.message ?? 'Login failed. Check your connection.');
+      // err may be an axios error (err.response.data.message) or
+      // a plain object if the interceptor already unwrapped it.
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        'Login failed. Please check your credentials and connection.';
+      setErrorMsg(msg);
     },
   });
 
