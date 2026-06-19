@@ -1,0 +1,11 @@
+# EAS Build — exclude local build artifacts
+# These are generated locally and not needed for cloud builds.
+# Excluding them reduces the upload from ~294 MB to ~5 MB.
+
+android/
+ios/
+.gradle/
+*.apk
+*.aab
+*.so
+*.o
