@@ -2,7 +2,7 @@
   "expo": {
     "name": "ServicePilot",
     "slug": "servicepilot-mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "servicepilot",
@@ -30,6 +30,7 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "package": "ae.servicepilot.mobile",
+      "versionCode": 2,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
