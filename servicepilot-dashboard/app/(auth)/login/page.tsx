@@ -16,6 +16,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { authApi } from "@/lib/api/auth";
@@ -125,20 +126,8 @@ function LoginForm() {
       <div className="flex w-[42%] min-w-[420px] flex-col bg-white px-14 py-12">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-12">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-btn flex-shrink-0">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="2" y="7" width="20" height="14" rx="2" />
-              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-            </svg>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden flex-shrink-0">
+            <Image src="/logo.png" alt="ServicePilot" width={40} height={40} className="rounded-xl" priority />
           </div>
           <div>
             <div className="text-[17px] font-bold text-gray-900 leading-tight">

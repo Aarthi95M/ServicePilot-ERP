@@ -47,8 +47,9 @@ namespace ServicePilot.Infrastructure.Services
                 branchId = _currentUser.BranchId;
 
             var companyId = _currentUser.CompanyId;
-            var fromDt = from.ToDateTime(TimeOnly.MinValue);
-            var toDt = to.ToDateTime(TimeOnly.MaxValue);
+            // Always use UTC kind — Npgsql v6+ rejects DateTimeKind.Unspecified against timestamptz columns
+            var fromDt = DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            var toDt   = DateTime.SpecifyKind(to.ToDateTime(TimeOnly.MaxValue),   DateTimeKind.Utc);
 
             var employeeQuery = _context.Employees
                 .AsNoTracking()
@@ -78,9 +79,15 @@ namespace ServicePilot.Infrastructure.Services
             {
                 var empLogs = logs.Where(l => l.EmployeeId == emp.Id).ToList();
 
-                var present = empLogs.Count(l => l.Status == AttendanceStatus.Present);
-                var late = empLogs.Count(l => l.Status == AttendanceStatus.Late);
-                var absent = totalDays - empLogs.Count;
+                // Deduplicate: one log per calendar day (first check-in of each day determines status)
+                var distinctDayLogs = empLogs
+                    .GroupBy(l => l.CheckInTime.Date)
+                    .Select(grp => grp.OrderBy(l => l.CheckInTime).First())
+                    .ToList();
+
+                var present = distinctDayLogs.Count(l => l.Status == AttendanceStatus.Present);
+                var late    = distinctDayLogs.Count(l => l.Status == AttendanceStatus.Late);
+                var absent  = totalDays - distinctDayLogs.Count;
                 var offline = empLogs.Count(l => l.IsOfflineSync);
 
                 var totalHours = empLogs
@@ -144,8 +151,9 @@ namespace ServicePilot.Infrastructure.Services
                 branchId = _currentUser.BranchId;
 
             var companyId = _currentUser.CompanyId;
-            var fromDt = from.ToDateTime(TimeOnly.MinValue);
-            var toDt = to.ToDateTime(TimeOnly.MaxValue);
+            // Always use UTC kind — Npgsql v6+ rejects DateTimeKind.Unspecified against timestamptz columns
+            var fromDt = DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            var toDt   = DateTime.SpecifyKind(to.ToDateTime(TimeOnly.MaxValue),   DateTimeKind.Utc);
 
             var jobQuery = _context.Jobs
                 .AsNoTracking()

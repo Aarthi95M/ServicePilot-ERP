@@ -157,16 +157,33 @@ namespace ServicePilot.Infrastructure.Services
                     .Where(x => x.Employee.BranchId == _currentUser.BranchId)
                     .ToList();
 
+            // ── FIXED: deduplicate by employee so multiple check-ins don't skew counts ──
+            // "Late" is determined by the employee's FIRST check-in of the day.
+            // "Active / CheckedOut" is determined by the employee's LATEST check-in of the day.
+            var distinctEmployeeIds = todayLogs
+                .Select(x => x.EmployeeId).Distinct().ToList();
+
+            var firstPerEmployee = todayLogs
+                .GroupBy(x => x.EmployeeId)
+                .Select(grp => grp.OrderBy(x => x.CheckInTime).First())
+                .ToList();
+
+            var latestPerEmployee = todayLogs
+                .GroupBy(x => x.EmployeeId)
+                .Select(grp => grp.OrderByDescending(x => x.CheckInTime).First())
+                .ToList();
+
             var dashboard = new AttendanceDashboardDto
             {
-                Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                Date           = DateOnly.FromDateTime(DateTime.UtcNow),
                 TotalEmployees = totalEmployees,
-                CheckedIn = todayLogs.Count,
-                CheckedOut = todayLogs.Count(x => x.CheckOutTime.HasValue),
-                Late = todayLogs.Count(x => x.Status == AttendanceStatus.Late),
-                Absent = totalEmployees - todayLogs.Count,
-                OfflineSynced = todayLogs.Count(x => x.IsOfflineSync),
-                ActiveEmployees = todayLogs
+                CheckedIn      = distinctEmployeeIds.Count,
+                CheckedOut     = latestPerEmployee.Count(x => x.CheckOutTime.HasValue),
+                Late           = firstPerEmployee.Count(x => x.Status == AttendanceStatus.Late),
+                Absent         = totalEmployees - distinctEmployeeIds.Count,
+                OfflineSynced  = todayLogs.Count(x => x.IsOfflineSync),
+                // Active = employees whose LATEST check-in today has no checkout yet
+                ActiveEmployees = latestPerEmployee
                     .Where(x => x.CheckOutTime == null)
                     .Select(x => MapToDto(x, x.Employee))
                     .ToList()
@@ -331,6 +348,11 @@ namespace ServicePilot.Infrastructure.Services
                 return Fail<AttendanceResponseDto>(
                     "Check-out time must be after check-in time.");
 
+            // No two check-ins on the same day may overlap (exclude this record from check)
+            if (await HasOverlapAsync(log.EmployeeId, dto.CheckInTime, dto.CheckOutTime, excludeId: recordId))
+                return Fail<AttendanceResponseDto>(
+                    "The adjusted time range overlaps with another check-in for this employee on the same day. Please resolve the conflict first.");
+
             // Apply changes — ensure UTC kind so Npgsql writes to timestamptz correctly
             log.CheckInTime  = DateTime.SpecifyKind(dto.CheckInTime, DateTimeKind.Utc);
             log.CheckOutTime = dto.CheckOutTime.HasValue
@@ -376,6 +398,11 @@ namespace ServicePilot.Infrastructure.Services
             if (dto.CheckOutTime.HasValue && dto.CheckOutTime.Value <= dto.CheckInTime)
                 return Fail<AttendanceResponseDto>(
                     "Check-out time must be after check-in time.");
+
+            // No two check-ins on the same day may overlap
+            if (await HasOverlapAsync(dto.EmployeeId, dto.CheckInTime, dto.CheckOutTime))
+                return Fail<AttendanceResponseDto>(
+                    "The specified time range overlaps with an existing check-in for this employee on the same day.");
 
             var log = new AttendanceLog
             {
@@ -429,6 +456,43 @@ namespace ServicePilot.Infrastructure.Services
                     x.IsActive)
                 .Select(x => x.Employee)
                 .FirstOrDefaultAsync();
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // OVERLAP CHECK — no two check-ins for the same employee on the
+        // same day may have overlapping time ranges.
+        // Pass excludeId when EDITING an existing record so it is not
+        // compared against itself.
+        // ════════════════════════════════════════════════════════════════
+        private async Task<bool> HasOverlapAsync(
+            Guid employeeId, DateTime newCheckIn, DateTime? newCheckOut,
+            Guid? excludeId = null)
+        {
+            var dayStart = newCheckIn.Date;
+            var dayEnd   = dayStart.AddDays(1);
+
+            var existingLogs = await _context.AttendanceLogs
+                .AsNoTracking()
+                .Where(x =>
+                    x.EmployeeId == employeeId &&
+                    x.CompanyId  == _currentUser.CompanyId &&
+                    x.CheckInTime >= dayStart &&
+                    x.CheckInTime <  dayEnd &&
+                    (excludeId == null || x.Id != excludeId))
+                .ToListAsync();
+
+            // Treat an open checkout as "extends to end of day" for overlap purposes
+            var newEnd = newCheckOut ?? DateTime.MaxValue;
+
+            foreach (var log in existingLogs)
+            {
+                var existEnd = log.CheckOutTime ?? DateTime.MaxValue;
+                // Two ranges overlap when: newStart < existEnd  AND  newEnd > existStart
+                if (newCheckIn < existEnd && newEnd > log.CheckInTime)
+                    return true;
+            }
+
+            return false;
         }
 
         // ── Response wrappers — always produce your exact ApiResponse<T> shape ──

@@ -41,7 +41,7 @@ namespace ServicePilot.API.Controllers
         /// GET /api/reports/jobs?from=2026-05-01&to=2026-05-31
         /// </summary>
         [HttpGet("jobs")]
-        [Authorize(Roles = "Admin,Supervisor")]
+        [Authorize(Roles = Roles.JobWriteAccess)]  // Admin, Supervisor, Dispatcher
         public async Task<IActionResult> GetJobReport(
             [FromQuery] DateOnly from,
             [FromQuery] DateOnly to,

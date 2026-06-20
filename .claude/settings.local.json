@@ -15,7 +15,8 @@
       "Bash(findstr /i \"leaflet\" package.json)",
       "Bash(python3.exe --version)",
       "Bash(dotnet build *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx eas-cli *)"
     ]
   }
 }
