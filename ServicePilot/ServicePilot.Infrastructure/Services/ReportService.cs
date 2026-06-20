@@ -80,15 +80,17 @@ namespace ServicePilot.Infrastructure.Services
                 var empLogs = logs.Where(l => l.EmployeeId == emp.Id).ToList();
 
                 // Deduplicate: one log per calendar day (first check-in of each day determines status)
+                // CheckInTime is DateTime? — filter nulls before grouping
                 var distinctDayLogs = empLogs
-                    .GroupBy(l => l.CheckInTime.Date)
+                    .Where(l => l.CheckInTime.HasValue)
+                    .GroupBy(l => l.CheckInTime!.Value.Date)
                     .Select(grp => grp.OrderBy(l => l.CheckInTime).First())
                     .ToList();
 
-                var present = distinctDayLogs.Count(l => l.Status == AttendanceStatus.Present);
-                var late    = distinctDayLogs.Count(l => l.Status == AttendanceStatus.Late);
-                var absent  = totalDays - distinctDayLogs.Count;
-                var offline = empLogs.Count(l => l.IsOfflineSync);
+                var present  = distinctDayLogs.Count(l => l.Status == AttendanceStatus.Present);
+                var late     = distinctDayLogs.Count(l => l.Status == AttendanceStatus.Late);
+                var absent   = totalDays - distinctDayLogs.Count;
+                var offline  = empLogs.Count(l => l.IsOfflineSync);
 
                 var totalHours = empLogs
     .Where(l => l.CheckOutTime.HasValue && l.CheckInTime.HasValue)
