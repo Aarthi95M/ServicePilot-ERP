@@ -719,6 +719,7 @@ export default function AttendancePage() {
                           <SortArrow col={col} sortKey={filters.sortBy || ''} sortDir={filters.sortDir || 'asc'}/>
                         </th>
                       ))}
+                      <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Location</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Sync</th>
                       <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
@@ -756,6 +757,39 @@ export default function AttendancePage() {
                           }`}>
                             {log.status ? log.status.charAt(0).toUpperCase() + log.status.slice(1) : '—'}
                           </span>
+                        </td>
+                        {/* Location links — open Google Maps at check-in / check-out coords */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex flex-col gap-1">
+                            {log.checkInLat && log.checkInLng && Number(log.checkInLat) !== 0 ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${log.checkInLat},${log.checkInLng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-900 hover:underline"
+                                title={`Check-in location: ${Number(log.checkInLat).toFixed(5)}, ${Number(log.checkInLng).toFixed(5)}`}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                                In
+                              </a>
+                            ) : (
+                              <span className="text-[11px] text-gray-300">In —</span>
+                            )}
+                            {log.checkOutLat && log.checkOutLng && Number(log.checkOutLat) !== 0 ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${log.checkOutLat},${log.checkOutLng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-[11px] font-medium text-red-600 hover:text-red-800 hover:underline"
+                                title={`Check-out location: ${Number(log.checkOutLat).toFixed(5)}, ${Number(log.checkOutLng).toFixed(5)}`}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                                Out
+                              </a>
+                            ) : (
+                              <span className="text-[11px] text-gray-300">Out —</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3.5">
                           {log.isOfflineSync && (
