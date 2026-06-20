@@ -17,6 +17,7 @@ namespace ServicePilot.Application.DTOs.Dashboard
         // ── Header metrics ─────────────────────────────────────────────
         public int TotalBranchEmployees { get; set; }
         public int TotalActiveJobs { get; set; }
+        public int TotalCompletedJobs { get; set; }
         public int PendingLeaveRequests { get; set; }
         public int PendingOvertimeRequests { get; set; }
 

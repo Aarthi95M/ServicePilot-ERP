@@ -298,7 +298,7 @@ useEffect(() => {
               { label: 'Overtime Pending', value: data.pendingOvertimeRequests, cls: 'text-amber-600', iconCls: 'bg-amber-100 text-amber-600' },
               { label: 'Expiring Visas',   value: data.expiringDocumentsCount,  cls: 'text-red-600',   iconCls: 'bg-red-100 text-red-600'    },
               { label: 'Late Check-ins',   value: data.todayAttendance.late,     cls: 'text-amber-600', iconCls: 'bg-amber-100 text-amber-600' },
-              { label: 'Job Completion',   value: `${data.jobsByStatus.length > 0 ? 94 : 0}%`, cls: 'text-green-600', iconCls: 'bg-green-100 text-green-600' },
+              { label: 'Job Completion',   value: (() => { const total = (data.totalActiveJobs ?? 0) + (data.totalCompletedJobs ?? 0); return total > 0 ? `${Math.round((data.totalCompletedJobs ?? 0) / total * 100)}%` : '—'; })(), cls: 'text-green-600', iconCls: 'bg-green-100 text-green-600' },
             ].map((card) => (
               <div key={card.label} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
                 <div>

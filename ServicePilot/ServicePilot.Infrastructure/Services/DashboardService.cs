@@ -52,6 +52,9 @@ namespace ServicePilot.Infrastructure.Services
             var totalActiveJobsTask = await _context.Jobs
                 .CountAsync(x => x.CompanyId == companyId && x.CompletedAt == null);
 
+            var totalCompletedJobsTask = await _context.Jobs
+                .CountAsync(x => x.CompanyId == companyId && x.CompletedAt != null);
+
             var pendingLeaveTask = await _context.LeaveRequests
                 .CountAsync(x => x.CompanyId == companyId
                               && x.Status == RequestStatus.Pending);
@@ -190,7 +193,8 @@ namespace ServicePilot.Infrastructure.Services
             {
                 TotalActiveEmployees = totalEmployeesTask,
                 TotalActiveBranches =  totalBranchesTask,
-                TotalActiveJobs =  totalActiveJobsTask,
+                TotalActiveJobs =      totalActiveJobsTask,
+                TotalCompletedJobs =   totalCompletedJobsTask,
                 PendingLeaveRequests =  pendingLeaveTask,
                 PendingOvertimeRequests =  pendingOvertimeTask,
                 ExpiringDocumentsCount = expiryAlerts.Count,
@@ -288,6 +292,13 @@ namespace ServicePilot.Infrastructure.Services
 
             var totalActiveJobs = jobsByStatus.Sum(x => x.Count);
 
+            var totalCompletedJobs = await _context.Jobs
+                .CountAsync(x =>
+                    x.CompanyId == companyId &&
+                    x.CompletedAt != null &&
+                    x.AssignedEmployeeId != null &&
+                    branchEmployeeIds.Contains(x.AssignedEmployeeId!.Value));
+
             // Pending requests for branch employees
             var pendingLeaveCount = await _context.LeaveRequests
                 .CountAsync(x => x.CompanyId == companyId
@@ -377,7 +388,8 @@ namespace ServicePilot.Infrastructure.Services
             {
                 BranchName = branch?.Name ?? string.Empty,
                 TotalBranchEmployees = totalBranchEmployees,
-                TotalActiveJobs = totalActiveJobs,
+                TotalActiveJobs =    totalActiveJobs,
+                TotalCompletedJobs = totalCompletedJobs,
                 PendingLeaveRequests = pendingLeaveCount,
                 PendingOvertimeRequests = pendingOvertimeCount,
                 TodayAttendance = attendance,

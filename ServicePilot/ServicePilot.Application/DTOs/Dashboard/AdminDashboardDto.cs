@@ -15,7 +15,8 @@ namespace ServicePilot.Application.DTOs.Dashboard
         // ── Header metrics ─────────────────────────────────────────────
         public int TotalActiveEmployees { get; set; }
         public int TotalActiveBranches { get; set; }
-        public int TotalActiveJobs { get; set; }  // not completed
+        public int TotalActiveJobs { get; set; }     // not completed
+        public int TotalCompletedJobs { get; set; }  // CompletedAt != null
         public int PendingLeaveRequests { get; set; }
         public int PendingOvertimeRequests { get; set; }
         public int ExpiringDocumentsCount { get; set; }  // expiring within 30 days
