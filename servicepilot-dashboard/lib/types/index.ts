@@ -380,6 +380,7 @@ export interface AdminDashboardDto {
   totalActiveEmployees: number;
   totalActiveBranches: number;
   totalActiveJobs: number;
+  totalCompletedJobs: number;
   pendingLeaveRequests: number;
   pendingOvertimeRequests: number;
   expiringDocumentsCount: number;
