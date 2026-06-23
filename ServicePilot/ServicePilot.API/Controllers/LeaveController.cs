@@ -95,6 +95,19 @@ namespace ServicePilot.API.Controllers
         }
 
         /// <summary>
+        /// My leave balance — returns the calling employee's own balance
+        /// per leave type for the current year.
+        /// Used by the mobile app to show remaining days on the leave form.
+        /// </summary>
+        [HttpGet("my-balance")]
+        [Authorize(Roles = Roles.AllRoles)]
+        public async Task<IActionResult> GetMyBalance()
+        {
+            var response = await _service.GetMyBalanceAsync();
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        /// <summary>
         /// Leave balance summary per employee for a given year.
         /// Shows days taken, pending, and remaining per leave type.
         /// GET /api/leave/summary?year=2026

@@ -41,12 +41,24 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
     staleTime: Infinity,
   });
 
+  const { data: balances = [] } = useQuery({
+    queryKey: ['my-leave-balance'],
+    queryFn:  leaveApi.getMyBalance,
+    enabled:  visible,
+    staleTime: 30_000,
+  });
+
+  const balanceMap = Object.fromEntries(
+    (balances as any[]).map((b: any) => [b.leaveTypeId, b])
+  );
+
   const { mutate, isPending } = useMutation({
     mutationFn: leaveApi.create,
     onSuccess: (res) => {
       if (!res.success) { Alert.alert('Error', res.message || 'Request failed.'); return; }
       Alert.alert('✅ Submitted', 'Your leave request has been submitted.');
       qc.invalidateQueries({ queryKey: ['leave-requests'] });
+      qc.invalidateQueries({ queryKey: ['my-leave-balance'] });
       reset(); onClose();
     },
     onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Something went wrong.'),
@@ -87,21 +99,40 @@ function LeaveModal({ visible, onClose }: { visible: boolean; onClose: () => voi
               string, collapsing each pill into a bare circle with no visible label. */}
           <Text style={styles.fieldLabel}>Leave Type</Text>
           <View style={styles.typeRow}>
-            {(types as any[]).map((t) => (
-              <TouchableOpacity
-                key={t.id}
-                style={[styles.typePill, typeId === t.id && styles.typePillActive]}
-                onPress={() => setTypeId(t.id)}
-              >
-                <Text style={[styles.typePillText, typeId === t.id && styles.typePillTextActive]}>
-                  {t.label ?? t.name ?? 'Leave'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {(types as any[]).map((t) => {
+              const bal = balanceMap[t.id];
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.typePill, typeId === t.id && styles.typePillActive]}
+                  onPress={() => setTypeId(t.id)}
+                >
+                  <Text style={[styles.typePillText, typeId === t.id && styles.typePillTextActive]}>
+                    {t.label ?? t.name ?? 'Leave'}
+                  </Text>
+                  {bal != null && (
+                    <Text style={[styles.balanceBadge, typeId === t.id && styles.balanceBadgeActive]}>
+                      {bal.daysRemaining} left
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
             {types.length === 0 && (
               <Text style={styles.fieldHint}>No leave types configured for your company yet.</Text>
             )}
           </View>
+
+          {typeId && balanceMap[typeId] && (
+            <View style={styles.balanceBar}>
+              <Text style={styles.balanceBarText}>
+                📊  {balanceMap[typeId].daysRemaining} of {balanceMap[typeId].maxDaysPerYear} days remaining
+                {balanceMap[typeId].daysPending > 0
+                  ? `  ·  ${balanceMap[typeId].daysPending} pending`
+                  : ''}
+              </Text>
+            </View>
+          )}
 
           {/* Leave requests are forward-looking self-service requests — the
               calendar should not let an employee pick a date that's already
@@ -355,8 +386,12 @@ const styles = StyleSheet.create({
   textarea:         { minHeight: 80, paddingTop: 12 },
 
   typeRow:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  typePill:         { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.full, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  typePill:         { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.full, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   typePillActive:   { backgroundColor: Colors.primary, borderColor: Colors.primary },
   typePillText:     { fontSize: FontSize.sm, color: Colors.textSecondary },
   typePillTextActive: { color: '#fff', fontWeight: FontWeight.semibold },
+  balanceBadge:     { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  balanceBadgeActive: { color: 'rgba(255,255,255,0.8)' },
+  balanceBar:       { backgroundColor: '#e8f4fd', borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 4, borderWidth: 1, borderColor: '#bde0f5' },
+  balanceBarText:   { fontSize: FontSize.sm, color: '#1a6ba0', fontWeight: FontWeight.medium },
 });

@@ -227,6 +227,7 @@ namespace ServicePilot.Infrastructure.Repositories
 
                     return new LeaveTypeBalance
                     {
+                        LeaveTypeId    = lt.Id,
                         LeaveTypeName  = lt.Name,
                         IsPaid         = lt.IsPaid,
                         MaxDaysPerYear = entitledDays,                          // prorated

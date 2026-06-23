@@ -21,6 +21,7 @@ namespace ServicePilot.Application.DTOs.Leave
 
     public class LeaveTypeBalance
     {
+        public Guid LeaveTypeId { get; set; }
         public string LeaveTypeName { get; set; } = string.Empty;
         public bool IsPaid { get; set; }
         public int MaxDaysPerYear { get; set; }

@@ -408,6 +408,25 @@ namespace ServicePilot.Infrastructure.Services
         }
 
         // ════════════════════════════════════════════════════════════════
+        // MY BALANCE — employee's own leave balance per type (mobile)
+        // ════════════════════════════════════════════════════════════════
+
+        public async Task<ApiResponse<List<LeaveTypeBalance>>> GetMyBalanceAsync()
+        {
+            var employee = await GetEmployeeForCurrentUserAsync();
+            if (employee == null)
+                return Fail<List<LeaveTypeBalance>>(
+                    "No employee profile linked to this account.");
+
+            var year = DateTime.UtcNow.Year;
+            var summaries = await _repository.GetSummaryAsync(
+                _currentUser.CompanyId, year, employee.Id, null);
+
+            var summary = summaries.FirstOrDefault();
+            return Ok(summary?.Balances ?? new List<LeaveTypeBalance>());
+        }
+
+        // ════════════════════════════════════════════════════════════════
         // HELPERS
         // ════════════════════════════════════════════════════════════════
 

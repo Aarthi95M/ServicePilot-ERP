@@ -17,5 +17,6 @@ namespace ServicePilot.Application.Interfaces.Services
         Task<ApiResponse<LeaveRequestResponseDto>> ApproveRejectAsync(Guid id, ApproveRejectLeaveDto dto);
         Task<ApiResponse<LeaveRequestResponseDto>> CancelAsync(Guid id);
         Task<ApiResponse<IEnumerable<LeaveSummaryDto>>> GetSummaryAsync(int year, Guid? employeeId, Guid? departmentId);
+        Task<ApiResponse<List<LeaveTypeBalance>>> GetMyBalanceAsync();
     }
 }

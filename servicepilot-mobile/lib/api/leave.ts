@@ -20,4 +20,7 @@ export const leaveApi = {
   // Leave types for the dropdown — handle both wrapped and array responses
   getLeaveTypes: () =>
     apiClient.get('/lookups/leave-types').then(r => r.data.data ?? r.data ?? []),
+
+  getMyBalance: () =>
+    apiClient.get('/leave/my-balance').then(r => r.data.data ?? r.data ?? []),
 };
