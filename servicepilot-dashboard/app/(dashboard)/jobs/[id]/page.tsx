@@ -344,17 +344,28 @@ export default function JobDetailPage() {
             </div>
           )}
 
-          {/* Photos */}
+          {/* Photos & Videos */}
           {job.photos && job.photos.length > 0 && (
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-[14px] font-semibold text-gray-900">Job Photos</h3>
+              <h3 className="mb-4 text-[14px] font-semibold text-gray-900">Job Media</h3>
               <div className="grid grid-cols-3 gap-3">
                 {job.photos.map((photo: any) => (
-                  <div key={photo.id} className="relative overflow-hidden rounded-lg bg-gray-100">
-                    <img src={photo.photoUrl} alt={photo.photoType} className="aspect-square w-full object-cover"/>
+                  <div key={photo.id} className="group relative overflow-hidden rounded-lg bg-gray-100">
+                    {photo.photoUrl?.startsWith('data:video/') ? (
+                      <video src={photo.photoUrl} controls className="aspect-square w-full object-cover" />
+                    ) : (
+                      <img src={photo.photoUrl} alt={photo.photoType} className="aspect-square w-full object-cover"/>
+                    )}
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent px-2 py-1.5">
                       <span className="text-[10px] font-medium text-white">{photo.photoType}</span>
                     </div>
+                    <a
+                      href={photo.photoUrl}
+                      download={`job-${photo.photoType}-${photo.id?.slice(0, 8)}.${photo.photoUrl?.startsWith('data:video/') ? 'mp4' : 'jpg'}`}
+                      className="absolute right-1.5 top-1.5 rounded bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100"
+                    >
+                      ⬇ Save
+                    </a>
                   </div>
                 ))}
               </div>

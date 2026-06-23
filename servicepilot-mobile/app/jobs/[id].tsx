@@ -102,22 +102,20 @@ export default function JobDetailScreen() {
         return;
       }
 
-      // Extract base64 payload and detect the image extension from the MIME header
-      const mimeMatch = dataUri.match(/^data:image\/(\w+);base64,/);
-      const ext = mimeMatch?.[1] ?? 'jpg';
-      const base64 = dataUri.replace(/^data:image\/\w+;base64,/, '');
+      // Extract base64 payload — handles both image and video data URIs
+      const mimeMatch = dataUri.match(/^data:(image|video)\/(\w+);base64,/);
+      const ext = mimeMatch?.[2] ?? 'jpg';
+      const base64 = dataUri.replace(/^data:(image|video)\/\w+;base64,/, '');
 
-      const localUri = `${FileSystem.cacheDirectory}sp_photo_${Date.now()}.${ext}`;
+      const localUri = `${FileSystem.cacheDirectory}sp_media_${Date.now()}.${ext}`;
       await FileSystem.writeAsStringAsync(localUri, base64, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
       await MediaLibrary.saveToLibraryAsync(localUri);
-
-      // Clean up temp file — fire-and-forget, no need to await
       FileSystem.deleteAsync(localUri, { idempotent: true });
 
-      Alert.alert('✅ Saved', 'Photo saved to your gallery.');
+      Alert.alert('✅ Saved', `${mimeMatch?.[1] === 'video' ? 'Video' : 'Photo'} saved to your gallery.`);
     } catch (e: any) {
       Alert.alert('Save failed', e?.message ?? 'Something went wrong.');
     }
@@ -352,15 +350,13 @@ export default function JobDetailScreen() {
                     <Image source={{ uri: p.photoUrl }} style={styles.photo} resizeMode="cover" />
                   )}
                   <View style={styles.mediaOverlay}>
-                    {!isVideo(p.photoUrl) && (
-                      <TouchableOpacity
-                        style={styles.downloadBtn}
-                        onPress={() => handleSavePhoto(p.photoUrl)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Text style={styles.downloadBtnText}>⬇ Save</Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={styles.downloadBtn}
+                      onPress={() => handleSavePhoto(p.photoUrl)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text style={styles.downloadBtnText}>⬇ Save</Text>
+                    </TouchableOpacity>
                     {p.canDelete && (
                       <TouchableOpacity
                         style={styles.deleteBtn}
