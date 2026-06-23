@@ -320,7 +320,11 @@ namespace ServicePilot.Infrastructure.Services
                     return Fail<JobDetailDto>("Access denied.");
             }
 
-            return Ok(MapToDetailDto(job));
+            var detail = MapToDetailDto(job);
+            var isAdmin = _authorization.IsAdmin();
+            foreach (var p in detail.Photos)
+                p.CanDelete = p.UploadedByUserId == _currentUser.UserId || isAdmin;
+            return Ok(detail);
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -585,6 +589,10 @@ namespace ServicePilot.Infrastructure.Services
                     "png"  => "image/png",
                     "gif"  => "image/gif",
                     "webp" => "image/webp",
+                    "mp4"  => "video/mp4",
+                    "mov"  => "video/quicktime",
+                    "avi"  => "video/x-msvideo",
+                    "webm" => "video/webm",
                     _      => "image/jpeg",
                 };
             }
@@ -599,6 +607,7 @@ namespace ServicePilot.Infrastructure.Services
                 JobId = job.Id,
                 PhotoType = dto.PhotoType,
                 PhotoUrl = dataUri,
+                UploadedByUserId = _currentUser.UserId,
                 UploadedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
@@ -611,8 +620,27 @@ namespace ServicePilot.Infrastructure.Services
                 Id = photo.Id,
                 PhotoUrl = photo.PhotoUrl,
                 PhotoType = photo.PhotoType,
-                UploadedAt = photo.UploadedAt
+                UploadedByUserId = photo.UploadedByUserId,
+                UploadedAt = photo.UploadedAt,
+                CanDelete = true
             });
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // DeletePhotoAsync — uploader or admin can delete
+        // ════════════════════════════════════════════════════════════════
+        public async Task<ApiResponse<bool>> DeletePhotoAsync(Guid jobId, Guid photoId)
+        {
+            var photo = await _repository.GetPhotoByIdAsync(photoId);
+            if (photo == null || photo.JobId != jobId)
+                return Fail<bool>("Photo not found.");
+
+            if (photo.UploadedByUserId != _currentUser.UserId && !_authorization.IsAdmin())
+                return Fail<bool>("You can only delete photos you uploaded.");
+
+            _repository.DeletePhoto(photo);
+            await _repository.SaveChangesAsync();
+            return Ok(true);
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -714,6 +742,7 @@ namespace ServicePilot.Infrastructure.Services
                         Id = p.Id,
                         PhotoUrl = p.PhotoUrl ?? string.Empty,
                         PhotoType = p.PhotoType ?? string.Empty,
+                        UploadedByUserId = p.UploadedByUserId,
                         UploadedAt = p.UploadedAt
                     }).ToList() ?? []
             };

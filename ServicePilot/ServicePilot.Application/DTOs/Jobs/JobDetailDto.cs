@@ -35,6 +35,8 @@ namespace ServicePilot.Application.DTOs.Jobs
 
         /// <summary>Before | After | Progress | Signature</summary>
         public string PhotoType { get; set; } = string.Empty;
+        public Guid? UploadedByUserId { get; set; }
         public DateTime UploadedAt { get; set; }
+        public bool CanDelete { get; set; }
     }
 }

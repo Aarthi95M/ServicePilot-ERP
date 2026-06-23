@@ -44,8 +44,11 @@ export const jobsApi = {
 
   uploadPhoto: (id: string, base64: string, caption?: string) =>
     apiClient.post(`/jobs/${id}/photos`, {
-      photoType:   'Progress',   // default type; could expose as param later
+      photoType:   'Progress',
       photoBase64: base64,
       caption:     caption ?? 'photo.jpg',
     }).then((r) => r.data),
+
+  deletePhoto: (jobId: string, photoId: string) =>
+    apiClient.delete(`/jobs/${jobId}/photos/${photoId}`).then((r) => r.data),
 };

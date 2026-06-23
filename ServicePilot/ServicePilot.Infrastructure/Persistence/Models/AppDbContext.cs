@@ -482,6 +482,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.JobId).HasColumnName("job_id");
             entity.Property(e => e.PhotoType).HasColumnName("photo_type");
             entity.Property(e => e.PhotoUrl).HasColumnName("photo_url");
+            entity.Property(e => e.UploadedByUserId).HasColumnName("uploaded_by_user_id");
             entity.Property(e => e.UploadedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("uploaded_at");

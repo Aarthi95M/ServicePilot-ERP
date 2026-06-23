@@ -18,6 +18,7 @@ namespace ServicePilot.Application.Interfaces.Services
         Task<ApiResponse<JobResponseDto>> AssignAsync(Guid id, AssignJobDto dto);
         Task<ApiResponse<JobResponseDto>> UpdateStatusAsync(Guid id, UpdateJobStatusDto dto);
         Task<ApiResponse<JobPhotoDto>> UploadPhotoAsync(Guid id, UploadJobPhotoDto dto);
+        Task<ApiResponse<bool>> DeletePhotoAsync(Guid jobId, Guid photoId);
         Task<ApiResponse<bool>> DeleteAsync(Guid id);
     }
 }

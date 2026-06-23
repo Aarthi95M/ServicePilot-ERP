@@ -32,6 +32,8 @@ namespace ServicePilot.Application.Interfaces.Repositories
         // Photo helpers
         Task AddPhotoAsync(JobPhoto photo);
         Task<IEnumerable<JobPhoto>> GetPhotosAsync(Guid jobId);
+        Task<JobPhoto?> GetPhotoByIdAsync(Guid photoId);
+        void DeletePhoto(JobPhoto photo);
 
         // Status history
         Task AddStatusHistoryAsync(JobStatusHistory history);

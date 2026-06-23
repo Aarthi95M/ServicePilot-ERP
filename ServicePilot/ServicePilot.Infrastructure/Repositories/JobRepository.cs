@@ -34,6 +34,16 @@ namespace ServicePilot.Infrastructure.Repositories
             await _context.JobPhotos.AddAsync(photo);
         }
 
+        public async Task<JobPhoto?> GetPhotoByIdAsync(Guid photoId)
+        {
+            return await _context.JobPhotos.FirstOrDefaultAsync(p => p.Id == photoId);
+        }
+
+        public void DeletePhoto(JobPhoto photo)
+        {
+            _context.JobPhotos.Remove(photo);
+        }
+
         public async Task AddStatusHistoryAsync(JobStatusHistory history)
         {
             await _context.JobStatusHistories.AddAsync(history);

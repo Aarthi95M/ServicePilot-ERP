@@ -14,13 +14,9 @@ import {
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-// expo-file-system v56 moved the classic API (cacheDirectory, writeAsStringAsync,
-// deleteAsync, EncodingType) to a "/legacy" sub-path.  The root import now
-// exposes only the new OOP File/Directory/Paths API.
 import * as FileSystem from 'expo-file-system/legacy';
-// Same as expo-file-system — SDK 56 moved the classic API (requestPermissionsAsync,
-// saveToLibraryAsync) to a "/legacy" sub-path.  The root import is the new OOP API.
 import * as MediaLibrary from 'expo-media-library/legacy';
+import { Video, ResizeMode } from 'expo-av';
 import { jobsApi } from '@/lib/api/jobs';
 import { lookupsApi } from '@/lib/api/lookups';
 import { Card } from '@/components/shared/Card';
@@ -127,6 +123,54 @@ export default function JobDetailScreen() {
     }
   };
 
+  const handleDeletePhoto = (photoId: string) => {
+    Alert.alert('Delete Photo', 'Are you sure you want to delete this photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            const res = await jobsApi.deletePhoto(id!, photoId);
+            if (!res.success) { Alert.alert('Error', res.message || 'Delete failed.'); return; }
+            qc.invalidateQueries({ queryKey: ['job', id] });
+          } catch (e: any) {
+            Alert.alert('Error', e?.response?.data?.message ?? 'Something went wrong.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleVideoUpload = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow media library access.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      allowsEditing: false,
+      quality: 0.5,
+      videoMaxDuration: 30,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setUploadingPhoto(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const ext = asset.uri.split('.').pop() ?? 'mp4';
+      const res = await jobsApi.uploadPhoto(id!, base64, `video.${ext}`);
+      if (!res.success) { Alert.alert('Upload failed', res.message || 'Try again.'); return; }
+      qc.invalidateQueries({ queryKey: ['job', id] });
+      Alert.alert('✅ Video uploaded');
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.response?.data?.message ?? e?.message ?? 'Something went wrong.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handlePhotoUpload = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -195,10 +239,9 @@ export default function JobDetailScreen() {
     ? availableTransitions
     : availableTransitions.slice(0, 3);
 
-  // Photos: job detail has a photos array, each item has photoUrl
-  const photos: string[] = (job.photos ?? [])
-    .map((p: any) => p.photoUrl ?? p)
-    .filter(Boolean);
+  const photoItems: { id: string; photoUrl: string; photoType: string; canDelete: boolean }[] =
+    (job.photos ?? []).filter((p: any) => p.photoUrl);
+  const isVideo = (url: string) => url.startsWith('data:video/');
 
   return (
     <>
@@ -283,28 +326,51 @@ export default function JobDetailScreen() {
           </Card>
         )}
 
-        {/* Photos */}
+        {/* Photos & Videos */}
         <Card>
           <Text style={styles.sectionLabel}>
-            Photos {photos.length > 0 ? `(${photos.length})` : ''}
+            Photos {photoItems.length > 0 ? `(${photoItems.length})` : ''}
           </Text>
 
-          {photos.length > 0 && (
+          {photoItems.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.photoRow}
             >
-              {photos.map((url: string, i: number) => (
-                <View key={i} style={styles.photoWrap}>
-                  <Image source={{ uri: url }} style={styles.photo} resizeMode="cover" />
-                  <TouchableOpacity
-                    style={styles.downloadBtn}
-                    onPress={() => handleSavePhoto(url)}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  >
-                    <Text style={styles.downloadBtnText}>⬇ Save</Text>
-                  </TouchableOpacity>
+              {photoItems.map((p: any) => (
+                <View key={p.id} style={styles.photoWrap}>
+                  {isVideo(p.photoUrl) ? (
+                    <Video
+                      source={{ uri: p.photoUrl }}
+                      style={styles.photo}
+                      resizeMode={ResizeMode.COVER}
+                      useNativeControls
+                      isLooping={false}
+                    />
+                  ) : (
+                    <Image source={{ uri: p.photoUrl }} style={styles.photo} resizeMode="cover" />
+                  )}
+                  <View style={styles.mediaOverlay}>
+                    {!isVideo(p.photoUrl) && (
+                      <TouchableOpacity
+                        style={styles.downloadBtn}
+                        onPress={() => handleSavePhoto(p.photoUrl)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Text style={styles.downloadBtnText}>⬇ Save</Text>
+                      </TouchableOpacity>
+                    )}
+                    {p.canDelete && (
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => handleDeletePhoto(p.id)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Text style={styles.deleteBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               ))}
             </ScrollView>
@@ -313,15 +379,18 @@ export default function JobDetailScreen() {
           {uploadingPhoto ? (
             <View style={styles.uploadingRow}>
               <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.uploadingText}>Uploading photo…</Text>
+              <Text style={styles.uploadingText}>Uploading…</Text>
             </View>
           ) : (
             <View style={styles.photoActions}>
               <TouchableOpacity style={styles.photoBtn} onPress={handleCameraCapture}>
-                <Text style={styles.photoBtnText}>📷 Take Photo</Text>
+                <Text style={styles.photoBtnText}>📷 Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.photoBtn} onPress={handlePhotoUpload}>
-                <Text style={styles.photoBtnText}>🖼 From Library</Text>
+                <Text style={styles.photoBtnText}>🖼 Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.photoBtn} onPress={handleVideoUpload}>
+                <Text style={styles.photoBtnText}>🎬 Video</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -423,9 +492,12 @@ const styles = StyleSheet.create({
 
   photoRow:         { gap: 8, paddingBottom: 8 },
   photoWrap:        { position: 'relative' },
-  photo:            { width: 120, height: 90, borderRadius: Radius.sm, backgroundColor: Colors.border },
-  downloadBtn:      { position: 'absolute', right: 4, bottom: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 3 },
+  photo:            { width: 140, height: 105, borderRadius: Radius.sm, backgroundColor: Colors.border },
+  mediaOverlay:     { position: 'absolute', bottom: 4, left: 4, right: 4, flexDirection: 'row', justifyContent: 'space-between' },
+  downloadBtn:      { backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 3 },
   downloadBtnText:  { color: '#fff', fontSize: 10, fontWeight: FontWeight.semibold },
+  deleteBtn:        { backgroundColor: 'rgba(220,38,38,0.8)', borderRadius: Radius.sm, paddingHorizontal: 7, paddingVertical: 3 },
+  deleteBtnText:    { color: '#fff', fontSize: 11, fontWeight: FontWeight.bold },
   uploadingRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   uploadingText:    { fontSize: FontSize.sm, color: Colors.textSecondary },
   photoActions:     { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },

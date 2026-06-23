@@ -13,6 +13,8 @@ public partial class JobPhoto
 
     public string PhotoType { get; set; } = null!;
 
+    public Guid? UploadedByUserId { get; set; }
+
     public DateTime UploadedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }

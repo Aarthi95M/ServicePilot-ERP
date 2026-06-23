@@ -107,6 +107,17 @@ namespace ServicePilot.API.Controllers
         }
 
         /// <summary>
+        /// Delete a job photo. Only the uploader or Admin can delete.
+        /// </summary>
+        [HttpDelete("{jobId:guid}/photos/{photoId:guid}")]
+        [Authorize(Roles = Roles.JobReadAccess)]
+        public async Task<IActionResult> DeletePhoto(Guid jobId, Guid photoId)
+        {
+            var response = await _service.DeletePhotoAsync(jobId, photoId);
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+
+        /// <summary>
         /// Delete job. Admin only — Dispatcher cannot delete.
         /// </summary>
         [HttpDelete("{id:guid}")]
