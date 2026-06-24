@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
-import { Video, ResizeMode } from 'expo-av';
+import * as Linking from 'expo-linking';
 import { jobsApi } from '@/lib/api/jobs';
 import { lookupsApi } from '@/lib/api/lookups';
 import { Card } from '@/components/shared/Card';
@@ -339,13 +339,13 @@ export default function JobDetailScreen() {
               {photoItems.map((p: any) => (
                 <View key={p.id} style={styles.photoWrap}>
                   {isVideo(p.photoUrl) ? (
-                    <Video
-                      source={{ uri: p.photoUrl }}
-                      style={styles.photo}
-                      resizeMode={ResizeMode.COVER}
-                      useNativeControls
-                      isLooping={false}
-                    />
+                    <TouchableOpacity
+                      style={[styles.photo, styles.videoThumb]}
+                      onPress={() => handleSavePhoto(p.photoUrl)}
+                    >
+                      <Text style={styles.videoPlayIcon}>▶</Text>
+                      <Text style={styles.videoLabel}>Video</Text>
+                    </TouchableOpacity>
                   ) : (
                     <Image source={{ uri: p.photoUrl }} style={styles.photo} resizeMode="cover" />
                   )}
@@ -494,6 +494,9 @@ const styles = StyleSheet.create({
   downloadBtnText:  { color: '#fff', fontSize: 10, fontWeight: FontWeight.semibold },
   deleteBtn:        { backgroundColor: 'rgba(220,38,38,0.8)', borderRadius: Radius.sm, paddingHorizontal: 7, paddingVertical: 3 },
   deleteBtnText:    { color: '#fff', fontSize: 11, fontWeight: FontWeight.bold },
+  videoThumb:       { backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  videoPlayIcon:    { fontSize: 28, color: '#fff' },
+  videoLabel:       { fontSize: 10, color: '#94a3b8', marginTop: 2 },
   uploadingRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   uploadingText:    { fontSize: FontSize.sm, color: Colors.textSecondary },
   photoActions:     { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
